@@ -2,6 +2,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyC6eDR2AqfSoj-EjoczcnOFX_R1AS1d_8Y",
   authDomain: "parking-lot-registration.firebaseapp.com",
+  databaseURL: "https://parking-lot-registration-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "parking-lot-registration",
   storageBucket: "parking-lot-registration.firebasestorage.app",
   messagingSenderId: "1031026900719",
