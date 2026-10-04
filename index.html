@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hotel Parking System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --admin: #7c3aed;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 16px;
+    }
+
+    .container { max-width: 600px; margin: 0 auto; }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 16px;
+    }
+
+    .admin-card { border-left: 4px solid var(--admin); }
+
+    .form-group { margin-bottom: 12px; }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 0.85rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      font-size: 1rem;
+    }
+
+    .btn-secondary { background-color: #64748b; }
+    .btn-danger { background-color: var(--danger); padding: 6px 12px; font-size: 0.85rem; width: auto; }
+    .btn-admin { background-color: var(--admin); }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+
+    th { background-color: #f1f5f9; }
+
+    .overlay {
+      display: flex;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.8);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .fee-display {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--success);
+      margin: 12px 0;
+      text-align: center;
+    }
+
+    .role-badge {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .badge-admin { background: #e9d5ff; color: var(--admin); }
+    .badge-employee { background: #dbeafe; color: var(--primary); }
+
+    #qrcode { display: flex; justify-content: center; margin: 16px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN OVERLAY -->
+  <div id="login-overlay" class="overlay">
+    <div class="modal-card">
+      <h2 style="margin-top:0;">Parking App Login</h2>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="user-role">Role</label>
+          <select id="user-role" onchange="toggleAdminPinInput()">
+            <option value="employee">Employee</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="employee-name">Name</label>
+          <input type="text" id="employee-name" placeholder="e.g. Alex" required>
+        </div>
+        <div class="form-group" id="pin-group" style="display:none;">
+          <label for="admin-pin">Admin PIN</label>
+          <input type="password" id="admin-pin" placeholder="Enter PIN (Default: 1234)">
+        </div>
+        <button type="submit">Start Shift</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="container">
+    <div class="header">
+      <div>
+        <h2 style="margin:0; color:var(--primary);">Hotel Parking</h2>
+        <span id="role-badge" class="role-badge">---</span>
+      </div>
+      <div>
+        <span id="current-user-display" style="font-size:0.85rem; font-weight:bold;">---</span>
+        <button onclick="logout()" class="btn-secondary" style="width:auto; padding:4px 8px; font-size:0.75rem; margin-left:6px;">Logout</button>
+      </div>
+    </div>
+
+    <!-- ADMIN PANEL (Visible only to Admin) -->
+    <div class="card admin-card" id="admin-panel" style="display:none;">
+      <h3 style="margin-top:0; color:var(--admin);">Admin Control Panel</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+        <div class="form-group">
+          <label>Hourly Rate ($)</label>
+          <input type="number" id="setting-rate" value="5">
+        </div>
+        <div class="form-group">
+          <label>Min Fee ($)</label>
+          <input type="number" id="setting-min" value="2">
+        </div>
+      </div>
+      <button onclick="saveRates()" class="btn-admin" style="margin-bottom:12px;">Update Rates</button>
+    </div>
+
+    <!-- Vehicle Entry -->
+    <div class="card">
+      <h3 style="margin-top:0;">Vehicle Entry</h3>
+      <form id="checkin-form">
+        <div class="form-group">
+          <label for="plate-input">License Plate</label>
+          <input type="text" id="plate-input" placeholder="e.g. ABC 123" required style="text-transform: uppercase;">
+        </div>
+        <button type="submit">Register Entry</button>
+      </form>
+    </div>
+
+    <!-- Search Active Vehicles -->
+    <div class="card">
+      <h3 style="margin-top:0;">Vehicle Exit</h3>
+      <div class="form-group">
+        <label for="search-plate">Find Plate</label>
+        <input type="text" id="search-plate" placeholder="Type plate to search..." onkeyup="filterVehicles()">
+      </div>
+    </div>
+
+    <!-- Active List -->
+    <div class="card">
+      <h3 style="margin-top:0;">Parked Vehicles (<span id="active-count">0</span>)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Plate</th>
+            <th>Time In</th>
+            <th>Staff</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="vehicle-table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="card">
+      <h3 style="margin-top:0;">Recent Activity Log</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Plate</th>
+            <th>Staff (In/Out)</th>
+            <th>Fee</th>
+            <th id="admin-col-header" style="display:none;">Manage</th>
+          </tr>
+        </thead>
+        <tbody id="history-table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Station QR Code Section (Only for Admin) -->
+    <div class="card" id="qr-section" style="display:none;">
+      <h3 style="margin-top:0; text-align:center;">Station Access Code</h3>
+      <div id="qrcode"></div>
+      <button onclick="window.print()" class="btn-secondary">Print QR Code</button>
+    </div>
+  </div>
+
+  <!-- Checkout Receipt Modal -->
+  <div id="receipt-modal" class="overlay" style="display:none;">
+    <div class="modal-card">
+      <h3 style="margin-top:0; text-align:center;">Process Exit</h3>
+      <p>Plate: <strong id="modal-plate">---</strong></p>
+      <p>Duration: <span id="modal-duration">---</span></p>
+      <div class="fee-display" id="modal-fee">$0.00</div>
+      <button onclick="confirmCheckout()">Complete & Collect</button>
+      <button onclick="closeModal()" class="btn-secondary" style="margin-top: 8px;">Cancel</button>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
