@@ -272,42 +272,60 @@ function filterVehicles() {
   renderActiveTable(query);
 }
 
-function openCheckoutModal(key) {
-  selectedVehicleKey = key;
-  const vehicle = activeVehiclesMap[key];
+function openCheckoutModal(plate, entryTime, duration, fee) {
+  const modalOverlay = document.getElementById('checkout-modal-overlay');
   
-  const entryTime = new Date(vehicle.entryTime);
-  const exitTime = new Date();
-  const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
-  const totalHours = Math.ceil(totalMinutes / 60);
+  modalOverlay.innerHTML = `
+    <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 420px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Vehicle Exit & Payment</h2>
+      <p style="font-size: 1.1rem; color: #334155; margin-bottom: 1rem;">
+        Plate: <strong>${plate}</strong><br>
+        Total Fee: <strong style="color: #16a34a; font-size: 1.25rem;">$${fee}</strong>
+      </p>
 
-  let fee = Math.max(totalHours * hourlyRate, minFee);
-  const hrs = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 1.5rem;">
+        <button onclick="completeCheckout('${plate}', 'Cash', ${fee})" style="background-color: #16a34a; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+          💵 Cash & Complete
+        </button>
+        
+        <button onclick="completeCheckout('${plate}', 'Card', ${fee})" style="background-color: #2563eb; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+          💳 Card & Complete
+        </button>
+        
+        <button onclick="completeCheckout('${plate}', 'Transfer', ${fee})" style="background-color: #9333ea; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+          📲 Transfer & Complete
+        </button>
 
-  document.getElementById('modal-plate').textContent = vehicle.plate;
-  document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
-  document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
+        <button onclick="closeCheckoutModal()" style="background-color: #64748b; color: white; padding: 10px; border: none; border-radius: 8px; margin-top: 5px; cursor: pointer;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
   
-  vehicle.calculatedFee = fee;
-  vehicle.durationText = `${hrs}h ${mins}m`;
-  document.getElementById('receipt-modal').style.display = 'flex';
+  modalOverlay.style.display = 'flex';
 }
 
-function confirmCheckout() {
-  if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
-    const v = activeVehiclesMap[selectedVehicleKey];
-    db.ref('history_log').push({
-      plate: v.plate,
-      entryStaff: v.entryStaff,
-      exitStaff: currentUser,
-      duration: v.durationText,
-      fee: v.calculatedFee,
-      timestamp: Date.now()
-    });
-    db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
-    closeModal();
-  }
+function closeCheckoutModal() {
+  const modalOverlay = document.getElementById('checkout-modal-overlay');
+  if (modalOverlay) modalOverlay.style.display = 'none';
+}
+function completeCheckout(plate, paymentMethod, fee) {
+  // 1. Remove vehicle from active_vehicles node
+  firebase.database().ref('active_vehicles/' + plate).remove();
+
+  // 2. Add entry to recent activity logs
+  const logRef = firebase.database().ref('activity_logs').push();
+  logRef.set({
+    plate: plate,
+    exitTime: new Date().toISOString(),
+    fee: fee,
+    paymentMethod: paymentMethod,
+    processedBy: currentUser || 'Staff'
+  });
+
+  // 3. Close modal
+  closeCheckoutModal();
 }
 
 function closeModal() {
