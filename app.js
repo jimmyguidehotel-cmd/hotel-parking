@@ -95,11 +95,28 @@ function loginUser(username, role) {
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
   localStorage.setItem('parking_role', currentRole);
+  
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
-  init();
-}
 
+  // Display welcome message panel inside the overlay
+  const loginOverlay = document.getElementById('login-overlay');
+  loginOverlay.innerHTML = `
+    <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Welcome Back!</h2>
+      <p style="font-size: 1.15rem; color: #334155; margin-bottom: 1rem;">
+        Good morning, <strong>${currentUser}</strong>! Let's crush it today!
+      </p>
+      <div style="font-size: 0.875rem; color: #64748b;">Loading workspace...</div>
+    </div>
+  `;
+
+  // Wait 3 seconds before clearing overlay and initializing app view
+  setTimeout(() => {
+    loginOverlay.style.display = 'none';
+    init();
+  }, 3000);
+}
 // Dedicated Logout Function
 // Logout with custom farewell panel
 function logout() {
