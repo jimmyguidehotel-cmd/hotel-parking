@@ -12,12 +12,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const ADMIN_PIN = "1234"; // Default Admin PIN
 const PURGE_AFTER_DAYS = 2; // Auto cleanup interval
 
 // App State
 let currentUser = localStorage.getItem('parking_user') || null;
 let currentRole = localStorage.getItem('parking_role') || 'employee';
+let accountsMap = {};
 let activeVehiclesMap = {};
 let historyLogMap = {};
 let selectedVehicleKey = null;
@@ -28,6 +28,8 @@ let minFee = 2.00;
 // DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
 const loginForm = document.getElementById('login-form');
+const createUserForm = document.getElementById('create-user-form');
+const usersTableBody = document.getElementById('users-table-body');
 const currentUserDisplay = document.getElementById('current-user-display');
 const roleBadge = document.getElementById('role-badge');
 const checkinForm = document.getElementById('checkin-form');
@@ -66,35 +68,85 @@ function init() {
   runAutoCleanup();
 }
 
-function toggleAdminPinInput() {
-  const role = document.getElementById('user-role').value;
-  document.getElementById('pin-group').style.display = role === 'admin' ? 'block' : 'none';
-}
-
-// Authentication
+// User Authentication (Login)
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const role = document.getElementById('user-role').value;
-  const name = document.getElementById('employee-name').value.trim();
-  const pin = document.getElementById('admin-pin').value;
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
 
-  if (role === 'admin' && pin !== ADMIN_PIN) {
-    alert('Incorrect Admin PIN!');
+  // Default master admin fallback account if database accounts are empty
+  if (username === 'admin' && password === '1234') {
+    loginUser('admin', 'admin');
     return;
   }
 
-  currentUser = name;
+  // Check account against Firebase database
+  const userAccount = accountsMap[username];
+  if (userAccount && userAccount.password === password) {
+    loginUser(username, userAccount.role || 'employee');
+  } else {
+    alert('Invalid username or password!');
+  }
+});
+
+function loginUser(username, role) {
+  currentUser = username;
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
   localStorage.setItem('parking_role', currentRole);
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
   init();
-});
+}
 
+// Dedicated Logout Function
 function logout() {
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_role');
   currentUser = null;
+  currentRole = 'employee';
   init();
+}
+
+// Account Creation (Admin Only)
+createUserForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const username = document.getElementById('new-username').value.trim().toLowerCase();
+  const password = document.getElementById('new-password').value;
+
+  if (username === 'admin') {
+    alert('The username "admin" is reserved!');
+    return;
+  }
+
+  db.ref(`accounts/${username}`).set({
+    password: password,
+    role: 'employee',
+    createdAt: Date.now()
+  });
+
+  document.getElementById('new-username').value = '';
+  document.getElementById('new-password').value = '';
+  alert(`Account for "${username}" created successfully!`);
+});
+
+function deleteAccount(username) {
+  if (confirm(`Are you sure you want to delete account "${username}"?`)) {
+    db.ref(`accounts/${username}`).remove();
+  }
+}
+
+function renderUsersTable() {
+  usersTableBody.innerHTML = '';
+  Object.entries(accountsMap).forEach(([username, acc]) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><strong>${username}</strong></td>
+      <td>${acc.role || 'employee'}</td>
+      <td><button onclick="deleteAccount('${username}')" class="btn-danger">Delete</button></td>
+    `;
+    usersTableBody.appendChild(row);
+  });
 }
 
 // Settings Update (Admin Only)
@@ -107,6 +159,11 @@ function saveRates() {
 
 // Listen to Database
 function setupRealtimeListeners() {
+  db.ref('accounts').on('value', (snap) => {
+    accountsMap = snap.val() || {};
+    if (currentRole === 'admin') renderUsersTable();
+  });
+
   db.ref('settings').on('value', (snap) => {
     const val = snap.val();
     if (val) {
@@ -166,6 +223,11 @@ function renderActiveTable(filter = '') {
     `;
     tableBody.appendChild(row);
   });
+}
+
+function filterVehicles() {
+  const query = document.getElementById('search-plate').value;
+  renderActiveTable(query);
 }
 
 function openCheckoutModal(key) {
