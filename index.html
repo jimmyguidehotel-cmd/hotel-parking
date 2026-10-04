@@ -139,21 +139,14 @@
       <h2 style="margin-top:0;">Parking App Login</h2>
       <form id="login-form">
         <div class="form-group">
-          <label for="user-role">Role</label>
-          <select id="user-role" onchange="toggleAdminPinInput()">
-            <option value="employee">Employee</option>
-            <option value="admin">Admin</option>
-          </select>
+          <label for="login-username">Username</label>
+          <input type="text" id="login-username" placeholder="e.g. alex" required style="text-transform: lowercase;">
         </div>
         <div class="form-group">
-          <label for="employee-name">Name</label>
-          <input type="text" id="employee-name" placeholder="e.g. Alex" required>
+          <label for="login-password">Password / PIN</label>
+          <input type="password" id="login-password" placeholder="Enter password" required>
         </div>
-        <div class="form-group" id="pin-group" style="display:none;">
-          <label for="admin-pin">Admin PIN</label>
-          <input type="password" id="admin-pin" placeholder="Enter PIN (Default: 1234)">
-        </div>
-        <button type="submit">Start Shift</button>
+        <button type="submit">Log In / Start Shift</button>
       </form>
     </div>
   </div>
@@ -167,13 +160,45 @@
       </div>
       <div>
         <span id="current-user-display" style="font-size:0.85rem; font-weight:bold;">---</span>
-        <button onclick="logout()" class="btn-secondary" style="width:auto; padding:4px 8px; font-size:0.75rem; margin-left:6px;">Logout</button>
+        <button onclick="logout()" class="btn-danger" style="margin-left: 8px;">Log Out</button>
       </div>
     </div>
 
     <!-- ADMIN PANEL (Visible only to Admin) -->
     <div class="card admin-card" id="admin-panel" style="display:none;">
       <h3 style="margin-top:0; color:var(--admin);">Admin Control Panel</h3>
+      
+      <!-- Create Account Form -->
+      <h4 style="margin-bottom:8px;">Create Employee Account</h4>
+      <form id="create-user-form" style="margin-bottom: 16px;">
+        <div class="form-group">
+          <label for="new-username">Employee Username</label>
+          <input type="text" id="new-username" placeholder="e.g. john" required style="text-transform: lowercase;">
+        </div>
+        <div class="form-group">
+          <label for="new-password">Employee Password / PIN</label>
+          <input type="password" id="new-password" placeholder="Set password" required>
+        </div>
+        <button type="submit" class="btn-admin">Create Employee Account</button>
+      </form>
+
+      <!-- Manage Accounts List -->
+      <h4 style="margin-bottom:8px;">Existing Accounts</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="users-table-body"></tbody>
+      </table>
+
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+
+      <!-- Rate Settings -->
+      <h4 style="margin-bottom:8px;">Rate Configuration</h4>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
         <div class="form-group">
           <label>Hourly Rate ($)</label>
@@ -265,10 +290,3 @@
   <script src="app.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
