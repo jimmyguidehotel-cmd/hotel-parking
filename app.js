@@ -1,12 +1,12 @@
 // 1. Firebase Credentials
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC6eDR2AqfSoj-EjoczcnOFX_R1AS1d_8Y",
+  authDomain: "parking-lot-registration.firebaseapp.com",
+  projectId: "parking-lot-registration",
+  storageBucket: "parking-lot-registration.firebasestorage.app",
+  messagingSenderId: "1031026900719",
+  appId: "1:1031026900719:web:b8642e24d22842e71f251a",
+  measurementId: "G-BFCQJ9MC1T"
 };
 
 firebase.initializeApp(firebaseConfig);
