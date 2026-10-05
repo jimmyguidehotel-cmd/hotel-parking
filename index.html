@@ -272,30 +272,30 @@
       <button onclick="window.print()" class="btn-secondary">Print QR Code</button>
     </div>
   </div>
-  <div id="receipt-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <h2>Vehicle Checkout</h2>
-      <p><strong>Plate:</strong> <span id="modal-plate">---</span></p>
-      <p><strong>Duration:</strong> <span id="modal-duration">---</span></p>
-      <p><strong>Total Fee:</strong> <span id="modal-fee">$0.00</span></p>
-  
-      <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem;">
-        <button onclick="confirmCheckoutWithMethod('Cash')" style="background-color: #16a34a; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          Cash & Complete
-        </button>
-        <button onclick="confirmCheckoutWithMethod('Card')" style="background-color: #2563eb; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          Card & Complete
-        </button>
-        <button onclick="confirmCheckoutWithMethod('Transfer')" style="background-color: #9333ea; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          Transfer & Complete
-        </button>
-        <button onclick="closeModal()" style="background-color: #64748b; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          Cancel
-        </button>
+    <div id="receipt-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <h2>Vehicle Checkout</h2>
+        <p><strong>Plate:</strong> <span id="modal-plate">---</span></p>
+        <p><strong>Duration:</strong> <span id="modal-duration">---</span></p>
+        <p><strong>Total Fee:</strong> <span id="modal-fee">$0.00</span></p>
+    
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem;">
+          <button onclick="confirmCheckoutWithMethod('Cash')" style="background-color: #16a34a; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+            Cash & Complete
+          </button>
+          <button onclick="confirmCheckoutWithMethod('Card')" style="background-color: #2563eb; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+            Card & Complete
+          </button>
+          <button onclick="confirmCheckoutWithMethod('Transfer')" style="background-color: #9333ea; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+            Transfer & Complete
+          </button>
+          <button onclick="closeModal()" style="background-color: #64748b; color: white; padding: 0.75rem; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  
+    
 
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
