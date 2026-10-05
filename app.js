@@ -272,55 +272,40 @@ function filterVehicles() {
   renderActiveTable(query);
 }
 
-// Checkout Logic
-function openCheckoutModal(index) {
-  selectedVehicleIndex = index;
-  const vehicle = activeVehicles[index];
+function openCheckoutModal(key) {
+  selectedVehicleKey = key;
+  const vehicle = activeVehiclesMap[key];
   
   const entryTime = new Date(vehicle.entryTime);
   const exitTime = new Date();
-  
-  const durationMs = exitTime - entryTime;
-  const totalMinutes = Math.ceil(durationMs / (1000 * 60));
+  const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
   const totalHours = Math.ceil(totalMinutes / 60);
 
-  let calculatedFee = totalHours * HOURLY_RATE;
-  if (calculatedFee < MINIMUM_FEE) calculatedFee = MINIMUM_FEE;
-
+  let fee = Math.max(totalHours * hourlyRate, minFee);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
 
   document.getElementById('modal-plate').textContent = vehicle.plate;
   document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
-  document.getElementById('modal-fee').textContent = `$${calculatedFee.toFixed(2)}`;
+  document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
   
-  // Store computed checkout metadata temporarily
-  vehicle.tempCalculatedFee = calculatedFee;
-  vehicle.tempDuration = `${hrs}h ${mins}m`;
-
+  vehicle.calculatedFee = fee;
+  vehicle.durationText = `${hrs}h ${mins}m`;
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
 function confirmCheckout() {
-  if (selectedVehicleIndex !== null) {
-    const vehicle = activeVehicles[selectedVehicleIndex];
-    
-    // Create completed audit log record
-    const historyItem = {
-      plate: vehicle.plate,
-      entryStaff: vehicle.entryStaff,
+  if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
+    const v = activeVehiclesMap[selectedVehicleKey];
+    db.ref('history_log').push({
+      plate: v.plate,
+      entryStaff: v.entryStaff,
       exitStaff: currentUser,
-      duration: vehicle.tempDuration,
-      fee: vehicle.tempCalculatedFee,
-      exitTime: new Date().toISOString()
-    };
-
-    historyLog.unshift(historyItem); // Add to top of audit log
-    activeVehicles.splice(selectedVehicleIndex, 1);
-    
-    saveData();
-    renderActiveTable();
-    renderHistoryTable();
+      duration: v.durationText,
+      fee: v.calculatedFee,
+      timestamp: Date.now()
+    });
+    db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
     closeModal();
   }
 }
