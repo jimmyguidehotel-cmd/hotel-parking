@@ -267,15 +267,18 @@ function renderActiveTable(filter = '') {
   });
 }
 
+// Search filter for vehicles
 function filterVehicles() {
   const query = document.getElementById('search-plate').value;
   renderActiveTable(query);
 }
 
+// Open checkout modal and store fee calculations
 function openCheckoutModal(key) {
   selectedVehicleKey = key;
   const vehicle = activeVehiclesMap[key];
-  
+  if (!vehicle) return;
+
   const entryTime = new Date(vehicle.entryTime);
   const exitTime = new Date();
   const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
@@ -288,28 +291,36 @@ function openCheckoutModal(key) {
   document.getElementById('modal-plate').textContent = vehicle.plate;
   document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
   document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
-  
+
   vehicle.calculatedFee = fee;
   vehicle.durationText = `${hrs}h ${mins}m`;
+
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
-function confirmCheckout() {
+// Complete checkout with specific payment method
+function confirmCheckoutWithMethod(paymentMethod) {
   if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
     const v = activeVehiclesMap[selectedVehicleKey];
+    
+    // Record to Firebase history log with payment method included
     db.ref('history_log').push({
       plate: v.plate,
       entryStaff: v.entryStaff,
       exitStaff: currentUser,
       duration: v.durationText,
       fee: v.calculatedFee,
+      paymentMethod: paymentMethod,
       timestamp: Date.now()
     });
+
+    // Remove vehicle from active parked vehicles
     db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
     closeModal();
   }
 }
 
+// Close checkout modal
 function closeModal() {
   document.getElementById('receipt-modal').style.display = 'none';
   selectedVehicleKey = null;
