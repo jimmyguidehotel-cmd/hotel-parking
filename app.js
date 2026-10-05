@@ -95,59 +95,18 @@ function loginUser(username, role) {
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
   localStorage.setItem('parking_role', currentRole);
-  
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
-
-  // Display welcome message panel inside the overlay
-  const loginOverlay = document.getElementById('login-overlay');
-  loginOverlay.innerHTML = `
-    <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Welcome Back!</h2>
-      <p style="font-size: 1.15rem; color: #334155; margin-bottom: 1rem;">
-        Good morning, <strong>${currentUser}</strong>! Let's crush it today!
-      </p>
-      <div style="font-size: 0.875rem; color: #64748b;">Loading workspace...</div>
-    </div>
-  `;
-
-  // Wait 3 seconds before clearing overlay and initializing app view
-  setTimeout(() => {
-    loginOverlay.style.display = 'none';
-    init();
-  }, 3000);
+  init();
 }
+
 // Dedicated Logout Function
-// Logout with custom farewell panel
 function logout() {
-  const name = currentUser ? currentUser : 'User';
-  
-  // Clear local storage session
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_role');
   currentUser = null;
   currentRole = 'employee';
-
-  // Hide main app views
-  document.getElementById('admin-panel').style.display = 'none';
-
-  // Customize and show the farewell message overlay
-  const loginOverlay = document.getElementById('login-overlay');
-  loginOverlay.innerHTML = `
-    <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Logged Out</h2>
-      <p style="font-size: 1.1rem; color: #334155; margin-bottom: 1rem;">
-        <strong>${name}</strong>, you have logged out. Have a great day!
-      </p>
-      <div style="font-size: 0.875rem; color: #64748b;">Redirecting to login...</div>
-    </div>
-  `;
-  loginOverlay.style.display = 'flex';
-
-  // Reload page after 3 seconds to reset to full login screen
-  setTimeout(() => {
-    window.location.reload();
-  }, 3000);
+  init();
 }
 
 // Account Creation (Admin Only)
@@ -265,20 +224,17 @@ function renderActiveTable(filter = '') {
     `;
     tableBody.appendChild(row);
   });
-} 
+}
 
-// Search filter for vehicles
 function filterVehicles() {
   const query = document.getElementById('search-plate').value;
   renderActiveTable(query);
 }
 
-// Open checkout modal and store fee calculations
 function openCheckoutModal(key) {
   selectedVehicleKey = key;
   const vehicle = activeVehiclesMap[key];
-  if (!vehicle) return;
-
+  
   const entryTime = new Date(vehicle.entryTime);
   const exitTime = new Date();
   const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
@@ -291,36 +247,28 @@ function openCheckoutModal(key) {
   document.getElementById('modal-plate').textContent = vehicle.plate;
   document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
   document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
-
+  
   vehicle.calculatedFee = fee;
   vehicle.durationText = `${hrs}h ${mins}m`;
-
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
-// Complete checkout with specific payment method
-function confirmCheckoutWithMethod(paymentMethod) {
+function confirmCheckout() {
   if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
     const v = activeVehiclesMap[selectedVehicleKey];
-    
-    // Record to Firebase history log with payment method included
     db.ref('history_log').push({
       plate: v.plate,
       entryStaff: v.entryStaff,
       exitStaff: currentUser,
       duration: v.durationText,
       fee: v.calculatedFee,
-      paymentMethod: paymentMethod,
       timestamp: Date.now()
     });
-
-    // Remove vehicle from active parked vehicles
     db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
     closeModal();
   }
 }
 
-// Close checkout modal
 function closeModal() {
   document.getElementById('receipt-modal').style.display = 'none';
   selectedVehicleKey = null;
