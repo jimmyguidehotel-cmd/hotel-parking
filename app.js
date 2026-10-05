@@ -101,14 +101,37 @@ function loginUser(username, role) {
 }
 
 // Dedicated Logout Function
+// Logout with custom farewell panel
 function logout() {
+  const name = currentUser ? currentUser : 'User';
+  
+  // Clear local storage session
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_role');
   currentUser = null;
   currentRole = 'employee';
-  init();
-}
 
+  // Hide main app views
+  document.getElementById('admin-panel').style.display = 'none';
+
+  // Customize and show the farewell message overlay
+  const loginOverlay = document.getElementById('login-overlay');
+  loginOverlay.innerHTML = `
+    <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Logged Out</h2>
+      <p style="font-size: 1.1rem; color: #334155; margin-bottom: 1rem;">
+        <strong>${name}</strong>, you have logged out. Have a great day!
+      </p>
+      <div style="font-size: 0.875rem; color: #64748b;">Redirecting to login...</div>
+    </div>
+  `;
+  loginOverlay.style.display = 'flex';
+
+  // Reload page after 3 seconds to reset to full login screen
+  setTimeout(() => {
+    window.location.reload();
+  }, 3000);
+}
 // Account Creation (Admin Only)
 createUserForm.addEventListener('submit', (e) => {
   e.preventDefault();
