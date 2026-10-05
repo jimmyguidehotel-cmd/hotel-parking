@@ -248,20 +248,43 @@ checkinForm.addEventListener('submit', (e) => {
 });
 
 function renderActiveTable(filter = '') {
+  const tableBody = document.getElementById('parked-table-body') || document.querySelector('tbody');
+  const activeCount = document.getElementById('active-count') || document.querySelector('#parked-count');
+
+  if (!tableBody) return;
+
   tableBody.innerHTML = '';
-  const entries = Object.entries(activeVehiclesMap);
-  activeCount.textContent = entries.length;
+  const entries = Object.entries(activeVehiclesMap || {});
 
-  entries.forEach(([key, v]) => {
-    if (filter && !v.plate.toLowerCase().includes(filter.toLowerCase())) return;
+  // Update active count badge if present
+  if (activeCount) {
+    activeCount.textContent = entries.length;
+  }
 
+  // Filter entries if a search term is provided
+  const filteredEntries = entries.filter(([key, v]) => {
+    return !filter || v.plate.toLowerCase().includes(filter.toLowerCase());
+  });
+
+  if (filteredEntries.length === 0) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.innerHTML = `<td colspan="4" style="text-align: center; color: #64748b; padding: 1rem;">No parked vehicles found.</td>`;
+    tableBody.appendChild(emptyRow);
+    return;
+  }
+
+  filteredEntries.forEach(([key, v]) => {
     const formattedTime = new Date(v.entryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('tr');
     row.innerHTML = `
       <td><strong>${v.plate}</strong></td>
       <td>${formattedTime}</td>
-      <td>${v.entryStaff}</td>
-      <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Exit</button></td>
+      <td>${v.entryStaff || '---'}</td>
+      <td>
+        <button class="btn-danger" onclick="openCheckoutModal('${key}')" style="background-color: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold;">
+          Exit
+        </button>
+      </td>
     `;
     tableBody.appendChild(row);
   });
