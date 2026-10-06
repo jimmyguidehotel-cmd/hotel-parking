@@ -296,9 +296,9 @@ function setupRealtimeListeners() {
     renderActiveTable();
   });
 
-  db.ref('history_log').on('value', (snap) => {
-    historyLogMap = snap.val() || {};
-    renderHistoryTable();
+  db.ref('history_log').limitToLast(3).on('value', (snapshot) => {
+    const historyData = snapshot.val() || {};
+    renderActivityLog(historyData);
   });
 }
 
