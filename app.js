@@ -444,3 +444,27 @@ function generateQRCode() {
   container.innerHTML = '';
   new QRCode(container, { text: window.location.href, width: 120, height: 120 });
 }
+// Automatically cleanup logs older than 14 days (1,209,600,000 ms)
+function cleanupOldLogs() {
+  const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+
+  db.ref('history_log')
+    .orderByChild('timestamp')
+    .endAt(fourteenDaysAgo)
+    .once('value', (snapshot) => {
+      const oldLogs = snapshot.val();
+      if (oldLogs) {
+        const updates = {};
+        Object.keys(oldLogs).forEach((key) => {
+          updates[`history_log/${key}`] = null; // null deletes the entry
+        });
+        
+        db.ref().update(updates)
+          .then(() => console.log('Old logs (>14 days) cleaned up successfully.'))
+          .catch((err) => console.error('Error cleaning up logs:', err));
+      }
+    });
+}
+
+// Run cleanup every time the app initializes
+cleanupOldLogs();
