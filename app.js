@@ -233,6 +233,14 @@ function renderFreeVehiclesList() {
   });
 }
 
+// Auto-uppercase the free vehicle plate input as the admin types
+const freePlateInput = document.getElementById('free-plate-input');
+if (freePlateInput) {
+  freePlateInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase();
+  });
+}
+
 // Handle Add Free Vehicle Form Submission
 const addFreeVehicleForm = document.getElementById('add-free-vehicle-form');
 if (addFreeVehicleForm) {
@@ -242,6 +250,14 @@ if (addFreeVehicleForm) {
     const noteInput = document.getElementById('free-note-input').value.trim();
 
     if (!plateInput) return;
+
+    // Mongolian Plate Format Regex: 4 digits + 3 uppercase letters (Latin or Cyrillic including Ө, Ү)
+    const mongolianPlateRegex = /^\d{4}[A-ZА-ЯӨҮ]{3}$/i;
+
+    if (!mongolianPlateRegex.test(plateInput)) {
+      alert('Invalid Mongolian Plate Number!\nFormat must be 4 digits followed by 3 letters (e.g., 1234АБВ or 1234ABC).');
+      return;
+    }
 
     const cleanKey = plateInput.replace(/[.#$\[\]]/g, '');
 
@@ -302,10 +318,26 @@ function setupRealtimeListeners() {
   });
 }
 
+// Auto-uppercase plate input as the user types (handles Latin & Cyrillic)
+const plateInput = document.getElementById('plate-input'); // or your plate input element
+if (plateInput) {
+  plateInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase();
+  });
+}
+
 // Entry & Exit Operations
 checkinForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const plate = plateInput.value.trim().toUpperCase();
+
+  // Mongolian Plate Format Regex: 4 digits followed by 3 uppercase letters (Latin or Cyrillic including Ө, Ү)
+  const mongolianPlateRegex = /^\d{4}[A-ZА-ЯӨҮ]{3}$/i;
+
+  if (!mongolianPlateRegex.test(plate)) {
+    alert('Invalid Mongolian Plate Number!\nFormat must be 4 digits followed by 3 letters (e.g., 1234АБВ or 1234ABC).');
+    return;
+  }
 
   const isParked = Object.values(activeVehiclesMap).some(v => v.plate === plate);
   if (isParked) {
@@ -319,6 +351,7 @@ checkinForm.addEventListener('submit', (e) => {
     entryStaff: currentUser,
     timestamp: Date.now()
   });
+  
   plateInput.value = '';
 });
 
