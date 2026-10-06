@@ -132,7 +132,7 @@ function logout() {
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_role');
   currentUser = null;
-  currentRole = 'employee';
+  currentRole = 'ажилтан';
 
   // Hide main app views
   document.getElementById('admin-panel').style.display = 'none';
