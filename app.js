@@ -24,8 +24,11 @@ let historyLogMap = {};
 let selectedVehicleKey = null;
 let freeVehiclesMap = {};
 
-let hourlyRate = 5.00;
-let minFee = 2.00;
+let rates = {
+  halfHourRate: 1000,
+  cap5to12Hrs: 10000,
+  dayRate: 20000
+};
 
 // DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
@@ -282,13 +285,31 @@ function removeFreeVehicle(key) {
   }
 }
 
-// Settings Update (Admin Only)
-function saveRates() {
-  hourlyRate = parseFloat(document.getElementById('setting-rate').value) || 5;
-  minFee = parseFloat(document.getElementById('setting-min').value) || 2;
-  db.ref('settings').set({ hourlyRate, minFee });
-  alert('Pricing updated successfully!');
+// Handle Parking Rate Settings Form Submission (Admin)
+const rateForm = document.getElementById('rate-settings-form');
+if (rateForm) {
+  rateForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const halfHour = parseInt(document.getElementById('rate-30min').value, 10);
+    const cap5h = parseInt(document.getElementById('rate-5to12h').value, 10);
+    const dayCap = parseInt(document.getElementById('rate-24h').value, 10);
+
+    db.ref('rate_settings').set({
+      halfHourRate: halfHour,
+      cap5to12Hrs: cap5h,
+      dayRate: dayCap,
+      updatedBy: currentUser,
+      timestamp: Date.now()
+    }).then(() => {
+      alert('Parking rates updated successfully!');
+    }).catch((err) => {
+      alert('Error saving rates: ' + err.message);
+    });
+  });
 }
+
+
 
 // Listen to Database
 function setupRealtimeListeners() {
@@ -297,13 +318,18 @@ function setupRealtimeListeners() {
     if (currentRole === 'admin') renderUsersTable();
   });
 
-  db.ref('settings').on('value', (snap) => {
+  db.ref('rate_settings').on('value', (snap) => {
     const val = snap.val();
     if (val) {
-      hourlyRate = val.hourlyRate || 5;
-      minFee = val.minFee || 2;
-      document.getElementById('setting-rate').value = hourlyRate;
-      document.getElementById('setting-min').value = minFee;
+      rates = { ...rates, ...val };
+      
+      const rate30Input = document.getElementById('rate-30min');
+      const rate5to12Input = document.getElementById('rate-5to12h');
+      const rate24Input = document.getElementById('rate-24h');
+
+      if (rate30Input) rate30Input.value = rates.halfHourRate || 1000;
+      if (rate5to12Input) rate5to12Input.value = rates.cap5to12Hrs || 10000;
+      if (rate24Input) rate24Input.value = rates.dayRate || 20000;
     }
   });
 
@@ -378,33 +404,81 @@ function filterVehicles() {
   renderActiveTable(query);
 }
 
+
+// Updated Checkout Modal Handler
+// Dynamic parking fee calculation helper
+function calculateParkingFee(totalMinutes, isFreeVehicle) {
+  if (isFreeVehicle || totalMinutes <= 0) return 0;
+
+  const HALF_HOUR_RATE = rates.halfHourRate || 1000;
+  const CAP_5_TO_12_HRS = rates.cap5to12Hrs || 10000;
+  const DAY_RATE = rates.dayRate || 20000;
+
+  const fullDays = Math.floor(totalMinutes / (24 * 60));
+  const remainingMinutes = totalMinutes % (24 * 60);
+
+  let remainingFee = 0;
+
+  if (remainingMinutes > 0) {
+    // 0 to 5 hours (0 - 300 mins)
+    if (remainingMinutes <= 300) {
+      const halfHourBlocks = Math.ceil(remainingMinutes / 30);
+      remainingFee = halfHourBlocks * HALF_HOUR_RATE;
+    } 
+    // 5 to 12 hours (301 - 720 mins)
+    else if (remainingMinutes <= 720) {
+      remainingFee = CAP_5_TO_12_HRS;
+    } 
+    // 12 to 17 hours (721 - 1020 mins)
+    else if (remainingMinutes <= 1020) {
+      const extraMinutes = remainingMinutes - 720;
+      const extraBlocks = Math.ceil(extraMinutes / 30);
+      remainingFee = CAP_5_TO_12_HRS + (extraBlocks * HALF_HOUR_RATE);
+    } 
+    // 17 to 24 hours (1021 - 1440 mins)
+    else {
+      remainingFee = DAY_RATE;
+    }
+  }
+
+  return (fullDays * DAY_RATE) + remainingFee;
+}
+
+// Updated Checkout Modal Handler
 function openCheckoutModal(key) {
   selectedVehicleKey = key;
   const vehicle = activeVehiclesMap[key];
   
   const entryTime = new Date(vehicle.entryTime);
   const exitTime = new Date();
-  const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
-  const totalHours = Math.ceil(totalMinutes / 60);
+  const totalMinutes = Math.max(1, Math.ceil((exitTime - entryTime) / (1000 * 60)));
 
   const cleanPlate = vehicle.plate.replace(/[.#$\[\]]/g, '').toUpperCase();
   const isFreeVehicle = !!freeVehiclesMap[cleanPlate];
 
-  let fee = isFreeVehicle ? 0 : Math.max(totalHours * hourlyRate, minFee);
-  const hrs = Math.floor(totalMinutes / 60);
+  // Dynamic fee calculation using Admin rate tiers
+  const fee = calculateParkingFee(totalMinutes, isFreeVehicle);
+
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hrs = Math.floor((totalMinutes % (24 * 60)) / 60);
   const mins = totalMinutes % 60;
 
+  let durationString = `${hrs}h ${mins}m`;
+  if (days > 0) {
+    durationString = `${days}d ${hrs}h ${mins}m`;
+  }
+
   document.getElementById('modal-plate').textContent = vehicle.plate;
-  document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
+  document.getElementById('modal-duration').textContent = durationString;
   
   if (isFreeVehicle) {
-    document.getElementById('modal-fee').textContent = `$0.00 (Free / Exempt Vehicle)`;
+    document.getElementById('modal-fee').textContent = `₮0 (Free / Exempt Vehicle)`;
   } else {
-    document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
+    document.getElementById('modal-fee').textContent = `₮${fee.toLocaleString()}`;
   }
   
   vehicle.calculatedFee = fee;
-  vehicle.durationText = `${hrs}h ${mins}m`;
+  vehicle.durationText = durationString;
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
