@@ -393,7 +393,7 @@ function renderActiveTable(filter = '') {
       <td><strong>${v.plate}</strong></td>
       <td>${formattedTime}</td>
       <td>${v.entryStaff}</td>
-      <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Exit</button></td>
+      <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Гаргах</button></td>
     `;
     tableBody.appendChild(row);
   });
