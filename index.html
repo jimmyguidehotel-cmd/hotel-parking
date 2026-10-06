@@ -332,33 +332,33 @@
   <!-- Receipt Modal -->
   <div id="receipt-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 9999;">
     <div class="modal-content" style="background: #ffffff; padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);">
-      <h3 style="color: #1e3a8a; margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem;">Process Vehicle Exit</h3>
+      <h3 style="color: #1e3a8a; margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem;">Машины гаралтыг бүртгэх</h3>
       
       <div style="text-align: left; background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem; border: 1px solid #e2e8f0;">
-        <p style="margin: 0.35rem 0; color: #334155;"><strong>Plate:</strong> <span id="modal-plate"></span></p>
-        <p style="margin: 0.35rem 0; color: #334155;"><strong>Duration:</strong> <span id="modal-duration"></span></p>
-        <p style="margin: 0.35rem 0; font-size: 1.1rem; color: #1e3a8a;"><strong>Fee:</strong> <span id="modal-fee"></span></p>
+        <p style="margin: 0.35rem 0; color: #334155;"><strong>Улсын Дугаар:</strong> <span id="modal-plate"></span></p>
+        <p style="margin: 0.35rem 0; color: #334155;"><strong>Хугацаа:</strong> <span id="modal-duration"></span></p>
+        <p style="margin: 0.35rem 0; font-size: 1.1rem; color: #1e3a8a;"><strong>Төлбөр:</strong> <span id="modal-fee"></span></p>
       </div>
   
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <button onclick="confirmCheckout('Cash')" style="background-color: #16a34a; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          💵 Cash & Complete
+          Бэлэн мөнгө
         </button>
         
         <button onclick="confirmCheckout('Card')" style="background-color: #2563eb; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          💳 Card & Complete
+          Карт
         </button>
         
         <button onclick="confirmCheckout('Transfer')" style="background-color: #9333ea; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          📲 Transfer & Complete
+          Данс
         </button>
 
         <button onclick="confirmCheckout('Free')" style="background-color: #059669; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          🎁 Free & Complete
+          Үнэгүй
         </button>
   
         <button onclick="closeModal()" style="background-color: #64748b; color: white; border: none; padding: 0.6rem; border-radius: 6px; cursor: pointer; margin-top: 0.25rem;">
-          Cancel
+          Цуцлах
         </button>
       </div>
     </div>
