@@ -318,8 +318,6 @@ function setupRealtimeListeners() {
   });
 }
 
-// Auto-uppercase plate input as the user types (handles Latin & Cyrillic)
-const plateInput = document.getElementById('plate-input'); // or your plate input element
 if (plateInput) {
   plateInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.toUpperCase();
