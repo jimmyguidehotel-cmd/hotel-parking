@@ -231,19 +231,25 @@
         </tbody>
       </table>
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
-      <!-- Rate Settings -->
-      <h4 style="margin-bottom:8px;">Rate Configuration</h4>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-        <div class="form-group">
-          <label>Hourly Rate ($)</label>
-          <input type="number" id="setting-rate" value="5">
+      <!-- Rate Configuration -->
+      <h4 style="margin-bottom:8px;">Rate Configuration (₮)</h4>
+      <form id="rate-settings-form">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-bottom: 12px;">
+          <div class="form-group">
+            <label for="rate-30min">30 Min Rate (₮)</label>
+            <input type="number" id="rate-30min" step="500" min="0" placeholder="1000" required />
+          </div>
+          <div class="form-group">
+            <label for="rate-5to12h">5–12 Hour Cap (₮)</label>
+            <input type="number" id="rate-5to12h" step="500" min="0" placeholder="10000" required />
+          </div>
+          <div class="form-group">
+            <label for="rate-24h">24 Hour Cap (₮)</label>
+            <input type="number" id="rate-24h" step="1000" min="0" placeholder="20000" required />
+          </div>
         </div>
-        <div class="form-group">
-          <label>Min Fee ($)</label>
-          <input type="number" id="setting-min" value="2">
-        </div>
-      </div>
-      <button onclick="saveRates()" class="btn-admin" style="margin-bottom:12px;">Update Rates</button>
+        <button type="submit" class="btn-admin" style="margin-bottom:12px;">Update Rates</button>
+      </form>
     </div>
 
     <!-- Vehicle Entry -->
