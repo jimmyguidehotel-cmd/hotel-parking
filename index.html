@@ -254,32 +254,32 @@
 
     <!-- Vehicle Entry -->
     <div class="card">
-      <h3 style="margin-top:0;">Vehicle Entry</h3>
+      <h3 style="margin-top:0;">Мамшн оруулах</h3>
       <form id="checkin-form">
         <div class="form-group">
-          <label for="plate-input">License Plate</label>
+          <label for="plate-input">Улсын Дугаар</label>
           <input 
             type="text"
             id="plate-input"
-            placeholder="e.g. 1234АБВ or 1234ABC" 
+            placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC" 
             maxlength="7" 
             style="text-transform: uppercase;" 
             required 
           />
         </div>
-        <button type="submit">Register Entry</button>
+        <button type="submit">Бүртгэх</button>
       </form>
     </div>
 
     <!-- Search Active Vehicles -->
     <div class="card">
-      <h3 style="margin-top:0;">Vehicle Exit</h3>
+      <h3 style="margin-top:0;">Машин гаргахt</h3>
       <div class="form-group">
-        <label for="search-plate">Find Plate</label>
+        <label for="search-plate">Номероор хайх</label>
         <input 
           type="text" 
           id="search-plate"
-          placeholder="e.g. 1234АБВ or 1234ABC" 
+          placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC" 
           maxlength="7" 
           style="text-transform: uppercase;" 
           required 
@@ -289,14 +289,14 @@
 
     <!-- Active List -->
     <div class="card">
-      <h3 style="margin-top:0;">Parked Vehicles (<span id="active-count">0</span>)</h3>
+      <h3 style="margin-top:0;">Зогсож буй машинууд (<span id="active-count">0</span>)</h3>
       <table>
         <thead>
           <tr>
-            <th>Plate</th>
-            <th>Time In</th>
-            <th>Staff</th>
-            <th>Action</th>
+            <th>Улсын Дугаар</th>
+            <th>Орсон цаг</th>
+            <th>Ажилтан</th>
+            <th>Үйлдэл</th>
           </tr>
         </thead>
         <tbody id="vehicle-table-body"></tbody>
@@ -305,13 +305,13 @@
 
     <!-- Activity Log -->
     <div class="card">
-      <h3 style="margin-top:0;">Recent Activity Log</h3>
+      <h3 style="margin-top:0;">Сүүлийн бүртгэлүүд</h3>
       <table>
         <thead>
           <tr>
-            <th>Plate</th>
-            <th>Staff (In/Out)</th>
-            <th>Fee</th>
+            <th>Улсын Дугаар</th>
+            <th>Орсон/Гарсан цаг</th>
+            <th>Төлбөр</th>
             <th id="admin-col-header" style="display:none;">Manage</th>
           </tr>
         </thead>
