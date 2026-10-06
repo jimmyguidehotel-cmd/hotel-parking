@@ -17,7 +17,7 @@ const PURGE_AFTER_DAYS = 2; // Auto cleanup interval
 
 // App State
 let currentUser = localStorage.getItem('parking_user') || null;
-let currentRole = localStorage.getItem('parking_role') || 'employee';
+let currentRole = localStorage.getItem('parking_role') || 'АЖИЛТАН';
 let accountsMap = {};
 let activeVehiclesMap = {};
 let historyLogMap = {};
@@ -132,7 +132,7 @@ function logout() {
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_role');
   currentUser = null;
-  currentRole = 'ажилтан';
+  currentRole = 'employee';
 
   // Hide main app views
   document.getElementById('admin-panel').style.display = 'none';
