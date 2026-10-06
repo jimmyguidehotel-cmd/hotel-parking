@@ -274,14 +274,30 @@
   </div>
 
   <!-- Checkout Receipt Modal -->
-  <div id="receipt-modal" class="overlay" style="display:none;">
-    <div class="modal-card">
-      <h3 style="margin-top:0; text-align:center;">Process Exit</h3>
-      <p>Plate: <strong id="modal-plate">---</strong></p>
-      <p>Duration: <span id="modal-duration">---</span></p>
-      <div class="fee-display" id="modal-fee">$0.00</div>
-      <button onclick="confirmCheckout()">Complete & Collect</button>
-      <button onclick="closeModal()" class="btn-secondary" style="margin-top: 8px;">Cancel</button>
+  <div id="receipt-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <h3>Process Vehicle Exit</h3>
+      <p>Plate: <span id="modal-plate"></span></p>
+      <p>Duration: <span id="modal-duration"></span></p>
+      <p>Fee: <span id="modal-fee"></span></p>
+  
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;">
+        <button onclick="confirmCheckout('Cash')" style="background-color: #16a34a; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          💵 Cash & Complete
+        </button>
+        
+        <button onclick="confirmCheckout('Card')" style="background-color: #2563eb; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          💳 Card & Complete
+        </button>
+        
+        <button onclick="confirmCheckout('Transfer')" style="background-color: #9333ea; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          📲 Transfer & Complete
+        </button>
+  
+        <button onclick="closeModal()" style="background-color: #64748b; color: white; padding: 8px; border: none; border-radius: 6px; cursor: pointer; margin-top: 4px;">
+          Cancel
+        </button>
+      </div>
     </div>
   </div>
 
