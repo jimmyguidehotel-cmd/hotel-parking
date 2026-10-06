@@ -22,6 +22,7 @@ let accountsMap = {};
 let activeVehiclesMap = {};
 let historyLogMap = {};
 let selectedVehicleKey = null;
+let freeVehiclesMap = {};
 
 let hourlyRate = 5.00;
 let minFee = 2.00;
@@ -192,6 +193,79 @@ function renderUsersTable() {
   });
 }
 
+// ==========================================
+// FREE VEHICLES MANAGEMENT (ADMIN)
+// ==========================================
+
+// Listen for Realtime Updates from Firebase
+db.ref('free_vehicles').on('value', (snapshot) => {
+  freeVehiclesMap = snapshot.val() || {};
+  renderFreeVehiclesList();
+});
+
+// Render Free Vehicles Table in Admin Panel
+function renderFreeVehiclesList() {
+  const tbody = document.getElementById('free-vehicles-list-body');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+
+  const keys = Object.keys(freeVehiclesMap);
+  if (keys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="padding: 12px; text-align: center; color: #64748b;">No free vehicles registered.</td></tr>';
+    return;
+  }
+
+  keys.forEach((key) => {
+    const item = freeVehiclesMap[key];
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f1f5f9';
+    tr.innerHTML = `
+      <td style="padding: 8px; font-weight: bold; text-transform: uppercase;">${item.plate}</td>
+      <td style="padding: 8px; color: #475569;">${item.note || 'N/A'}</td>
+      <td style="padding: 8px;">
+        <button onclick="removeFreeVehicle('${key}')" style="background-color: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+          Remove
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Handle Add Free Vehicle Form Submission
+const addFreeVehicleForm = document.getElementById('add-free-vehicle-form');
+if (addFreeVehicleForm) {
+  addFreeVehicleForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const plateInput = document.getElementById('free-plate-input').value.trim().toUpperCase();
+    const noteInput = document.getElementById('free-note-input').value.trim();
+
+    if (!plateInput) return;
+
+    const cleanKey = plateInput.replace(/[.#$\[\]]/g, '');
+
+    db.ref(`free_vehicles/${cleanKey}`).set({
+      plate: plateInput,
+      note: noteInput,
+      addedBy: currentUser,
+      timestamp: Date.now()
+    }).then(() => {
+      document.getElementById('free-plate-input').value = '';
+      document.getElementById('free-note-input').value = '';
+    }).catch((err) => {
+      alert('Error adding free vehicle: ' + err.message);
+    });
+  });
+}
+
+// Remove Free Vehicle
+function removeFreeVehicle(key) {
+  if (confirm(`Remove vehicle from free list?`)) {
+    db.ref(`free_vehicles/${key}`).remove();
+  }
+}
+
 // Settings Update (Admin Only)
 function saveRates() {
   hourlyRate = parseFloat(document.getElementById('setting-rate').value) || 5;
@@ -282,13 +356,21 @@ function openCheckoutModal(key) {
   const totalMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60));
   const totalHours = Math.ceil(totalMinutes / 60);
 
-  let fee = Math.max(totalHours * hourlyRate, minFee);
+  const cleanPlate = vehicle.plate.replace(/[.#$\[\]]/g, '').toUpperCase();
+  const isFreeVehicle = !!freeVehiclesMap[cleanPlate];
+
+  let fee = isFreeVehicle ? 0 : Math.max(totalHours * hourlyRate, minFee);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
 
   document.getElementById('modal-plate').textContent = vehicle.plate;
   document.getElementById('modal-duration').textContent = `${hrs}h ${mins}m`;
-  document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
+  
+  if (isFreeVehicle) {
+    document.getElementById('modal-fee').textContent = `$0.00 (Free / Exempt Vehicle)`;
+  } else {
+    document.getElementById('modal-fee').textContent = `$${fee.toFixed(2)}`;
+  }
   
   vehicle.calculatedFee = fee;
   vehicle.durationText = `${hrs}h ${mins}m`;
