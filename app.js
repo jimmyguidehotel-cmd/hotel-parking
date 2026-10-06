@@ -108,7 +108,7 @@ function loginUser(username, role) {
   const loginOverlay = document.getElementById('login-overlay');
   loginOverlay.innerHTML = `
     <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Welcome Back!</h2>
+      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Амжилттай нэвтэрлээ!</h2>
       <p style="font-size: 1.15rem; color: #334155; margin-bottom: 1rem;">
         Өглөөний мэнд!, <strong>${currentUser}</strong>! Өнөөдөр үзүүлээд өгөөрэй!
       </p>
