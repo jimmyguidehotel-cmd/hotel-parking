@@ -110,7 +110,7 @@ function loginUser(username, role) {
     <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
       <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Welcome Back!</h2>
       <p style="font-size: 1.15rem; color: #334155; margin-bottom: 1rem;">
-        Good morning, <strong>${currentUser}</strong>! Let's crush it today!
+        Өглөөний мэнд!, <strong>${currentUser}</strong>! Өнөөдөр үзүүлээд өгөөрэй!
       </p>
       <div style="font-size: 0.875rem; color: #64748b;">Loading workspace...</div>
     </div>
@@ -143,7 +143,7 @@ function logout() {
     <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
       <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Logged Out</h2>
       <p style="font-size: 1.1rem; color: #334155; margin-bottom: 1rem;">
-        <strong>${name}</strong>, you have logged out. Have a great day!
+        <strong>${name}</strong>, Амжилттай гарлаа. Өдрийг сайхан өнгрүүлээрэй!
       </p>
       <div style="font-size: 0.875rem; color: #64748b;">Redirecting to login...</div>
     </div>
@@ -258,7 +258,7 @@ if (addFreeVehicleForm) {
     const mongolianPlateRegex = /^\d{4}[A-ZА-ЯӨҮ]{3}$/i;
 
     if (!mongolianPlateRegex.test(plateInput)) {
-      alert('Invalid Mongolian Plate Number!\nFormat must be 4 digits followed by 3 letters (e.g., 1234АБВ or 1234ABC).');
+      alert('Улсын Дугаар буруу байна!\4 тоо, 3 үсэг форматаар бичнэ үү (жишээ нь: 1234АБВ эсвэл 1234ABC).');
       return;
     }
 
