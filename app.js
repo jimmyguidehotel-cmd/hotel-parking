@@ -295,17 +295,21 @@ function openCheckoutModal(key) {
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
-function confirmCheckout() {
+// Updated to accept the selected payment method ('Cash', 'Card', or 'Transfer')
+function confirmCheckout(paymentMethod) {
   if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
     const v = activeVehiclesMap[selectedVehicleKey];
+    
     db.ref('history_log').push({
       plate: v.plate,
       entryStaff: v.entryStaff,
       exitStaff: currentUser,
       duration: v.durationText,
       fee: v.calculatedFee,
+      paymentMethod: paymentMethod, // Log payment method to Firebase
       timestamp: Date.now()
     });
+
     db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
     closeModal();
   }
@@ -315,7 +319,6 @@ function closeModal() {
   document.getElementById('receipt-modal').style.display = 'none';
   selectedVehicleKey = null;
 }
-
 function renderHistoryTable() {
   historyBody.innerHTML = '';
   const history = Object.entries(historyLogMap).sort((a,b) => b[1].timestamp - a[1].timestamp);
