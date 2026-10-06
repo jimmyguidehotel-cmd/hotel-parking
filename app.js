@@ -141,9 +141,9 @@ function logout() {
   const loginOverlay = document.getElementById('login-overlay');
   loginOverlay.innerHTML = `
     <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Logged Out</h2>
+      <h2 style="color: #1e3a8a; margin-bottom: 0.5rem;">Амжилттай гарсан.</h2>
       <p style="font-size: 1.1rem; color: #334155; margin-bottom: 1rem;">
-        <strong>${name}</strong>, Амжилттай гарлаа. Өдрийг сайхан өнгрүүлээрэй!
+        <strong>${name}</strong>, Сайн ажиллаа. Өдрийг сайхан өнгрүүлээрэй!
       </p>
       <div style="font-size: 0.875rem; color: #64748b;">Redirecting to login...</div>
     </div>
