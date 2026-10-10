@@ -624,7 +624,7 @@ function renderActiveTable(filter = '') {
     row.innerHTML = `
       <td><strong>${v.plate}</strong></td>
       <td>${formattedTime}</td>
-      <td>${v.entryStaff}</td>
+      <td>${v.entryStaff}${v.manualEntry ? ' <span title="Админ гараар бүртгэсэн">✏️</span>' : ''}</td>
       <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Гаргах</button></td>
     `;
     tableBody.appendChild(row);
@@ -801,6 +801,86 @@ function cleanupOldLogs() {
           .catch((err) => console.error('Error cleaning up logs:', err));
       }
     });
+}
+// ==========================================
+// MANUAL VEHICLE REGISTRATION (ADMIN)
+// ==========================================
+function toLocalInputValue(date) {
+  // datetime-local needs "YYYY-MM-DDTHH:MM" in LOCAL time (toISOString would give UTC)
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+         `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const manualEntryForm = document.getElementById('manual-entry-form');
+const manualTimeInput = document.getElementById('manual-time-input');
+const manualPlateInput = document.getElementById('manual-plate-input');
+
+if (manualTimeInput) manualTimeInput.value = toLocalInputValue(new Date());
+
+if (manualPlateInput) {
+  manualPlateInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase();
+  });
+}
+
+if (manualEntryForm) {
+  manualEntryForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    if (currentRole !== 'admin') {
+      alert('Зөвхөн админ гараар бүртгэх эрхтэй.');
+      return;
+    }
+
+    const plate = manualPlateInput.value.trim().toUpperCase();
+    const timeValue = manualTimeInput.value;
+    const staffName = document.getElementById('manual-staff-input').value.trim().toLowerCase();
+
+    const mongolianPlateRegex = /^\d{4}[A-ZА-ЯӨҮ]{3}$/i;
+    if (!mongolianPlateRegex.test(plate)) {
+      alert('Улсын Дугаар буруу байна!\n4 тоо, 3 үсэг форматаар бичнэ үү (жишээ нь: 1234АБВ эсвэл 1234ABC).');
+      return;
+    }
+
+    if (!timeValue) {
+      alert('Орсон цагийг сонгоно уу.');
+      return;
+    }
+
+    const entryDate = new Date(timeValue);
+    const now = new Date();
+
+    if (entryDate > now) {
+      alert('Орсон цаг ирээдүйд байж болохгүй.');
+      return;
+    }
+
+    const hoursAgo = (now - entryDate) / (1000 * 60 * 60);
+    if (hoursAgo > 24) {
+      if (!confirm(`Энэ машин ${Math.floor(hoursAgo)} цагийн өмнө орсон гэж бүртгэгдэх гэж байна. Үргэлжлүүлэх үү?`)) return;
+    }
+
+    const isParked = Object.values(activeVehiclesMap).some(v => v.plate === plate);
+    if (isParked) {
+      alert('Энэ машин аль хэдийн зогсоолд бүртгэлтэй байна!');
+      return;
+    }
+
+    db.ref('active_vehicles').push({
+      plate: plate,
+      entryTime: entryDate.toISOString(),
+      entryStaff: staffName || currentUser,
+      manualEntry: true,
+      addedBy: currentUser,
+      timestamp: Date.now()
+    }).then(() => {
+      manualPlateInput.value = '';
+      document.getElementById('manual-staff-input').value = '';
+      manualTimeInput.value = toLocalInputValue(new Date());
+      alert(`${plate} амжилттай бүртгэгдлээ.`);
+    }).catch((err) => alert('Бүртгэхэд алдаа гарлаа: ' + err.message));
+  });
 }
 
 // Run cleanup every time the app initializes
