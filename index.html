@@ -250,6 +250,14 @@
         </div>
         <button type="submit" class="btn-admin" style="margin-bottom:12px;">Update Rates</button>
       </form>
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+      <h4 style="margin-bottom:8px;">Ээлжийн тайлангууд</h4>
+      <table>
+        <thead>
+          <tr><th>Ажилтан</th><th>Хугацаа</th><th>Бэлэн</th><th>Карт</th><th>Данс</th><th>Нийт</th></tr>
+        </thead>
+        <tbody id="shift-reports-body"></tbody>
+      </table>
     </div>
 
     <!-- Vehicle Entry -->
@@ -301,6 +309,18 @@
         </thead>
         <tbody id="vehicle-table-body"></tbody>
       </table>
+    </div>
+    <!-- Shift Summary -->
+    <div class="card" id="shift-card">
+      <h3 style="margin-top:0;">Миний ээлжийн орлого</h3>
+      <div id="shift-start-label" style="font-size:0.8rem; color:#64748b; margin-bottom:8px;"></div>
+      <table>
+        <thead>
+          <tr><th>Төлбөрийн хэлбэр</th><th>Тоо</th><th>Дүн</th></tr>
+        </thead>
+        <tbody id="shift-summary-body"></tbody>
+      </table>
+      <button id="send-report-btn" class="btn-admin" style="margin-top:12px;">Ээлжийн тайлан илгээх</button>
     </div>
 
     <!-- Activity Log -->
