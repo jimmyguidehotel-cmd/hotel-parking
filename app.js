@@ -165,7 +165,7 @@ function sendTelegramReport(report) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_I,
+      chat_id: TELEGRAM_CHAT_ID,
       text: buildReportText(report)
     })
   }).then((res) => {
