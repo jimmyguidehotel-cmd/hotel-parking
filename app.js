@@ -45,6 +45,185 @@ const activeCount = document.getElementById('active-count');
 const adminPanel = document.getElementById('admin-panel');
 const qrSection = document.getElementById('qr-section');
 const adminColHeader = document.getElementById('admin-col-header');
+// ==========================================
+// SHIFT SUMMARY & REPORTS
+// ==========================================
+const PAYMENT_LABELS = {
+  Cash: 'Бэлэн мөнгө',
+  Card: 'Карт',
+  Transfer: 'Данс',
+  Free: 'Үнэгүй'
+};
+
+let shiftLogsMap = {};
+let shiftListenerRef = null;
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function getShiftStart() {
+  return parseInt(localStorage.getItem('parking_shift_start'), 10) || startOfToday();
+}
+
+function formatDateTime(ts) {
+  return new Date(ts).toLocaleString([], {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// Listen only to logs since shift start (separate from the "last 3" listener)
+function listenShiftLogs() {
+  if (!currentUser) return;
+  if (shiftListenerRef) shiftListenerRef.off('value');
+
+  shiftListenerRef = db.ref('history_log').orderByChild('timestamp').startAt(getShiftStart());
+  shiftListenerRef.on('value', (snap) => {
+    shiftLogsMap = snap.val() || {};
+    renderShiftSummary();
+  });
+}
+
+function computeShiftSummary() {
+  const summary = {
+    Cash: { count: 0, amount: 0 },
+    Card: { count: 0, amount: 0 },
+    Transfer: { count: 0, amount: 0 },
+    Free: { count: 0, amount: 0 }
+  };
+
+  Object.values(shiftLogsMap).forEach((r) => {
+    if (r.exitStaff !== currentUser) return;
+    const method = summary[r.paymentMethod] ? r.paymentMethod : null;
+    if (!method) return;
+    summary[method].count += 1;
+    // Free exits never count as revenue
+    if (method !== 'Free') summary[method].amount += Number(r.fee) || 0;
+  });
+
+  const total = summary.Cash.amount + summary.Card.amount + summary.Transfer.amount;
+  const totalCount = Object.values(summary).reduce((s, x) => s + x.count, 0);
+  return { summary, total, totalCount };
+}
+
+function renderShiftSummary() {
+  const body = document.getElementById('shift-summary-body');
+  const label = document.getElementById('shift-start-label');
+  if (!body) return;
+
+  label.textContent = `Ээлж эхэлсэн: ${formatDateTime(getShiftStart())}`;
+
+  const { summary, total, totalCount } = computeShiftSummary();
+  body.innerHTML = '';
+
+  Object.keys(PAYMENT_LABELS).forEach((m) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${PAYMENT_LABELS[m]}</td>
+      <td>${summary[m].count}</td>
+      <td><strong>${m === 'Free' ? '—' : '₮' + summary[m].amount.toLocaleString()}</strong></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const totalRow = document.createElement('tr');
+  totalRow.style.background = '#f1f5f9';
+  totalRow.innerHTML = `
+    <td><strong>НИЙТ</strong></td>
+    <td><strong>${totalCount}</strong></td>
+    <td><strong>₮${total.toLocaleString()}</strong></td>
+  `;
+  body.appendChild(totalRow);
+}
+
+// Send end-of-shift report to Firebase
+const sendReportBtn = document.getElementById('send-report-btn');
+if (sendReportBtn) {
+  sendReportBtn.addEventListener('click', () => {
+    const { summary, total, totalCount } = computeShiftSummary();
+
+    if (totalCount === 0) {
+      alert('Энэ ээлжид гаргасан машин алга байна.');
+      return;
+    }
+    if (!confirm('Ээлжийн тайланг илгээх үү?\nИлгээсний дараа тоолуур шинэчлэгдэнэ.')) return;
+
+    const now = Date.now();
+    db.ref('shift_reports').push({
+      staff: currentUser,
+      shiftStart: getShiftStart(),
+      shiftEnd: now,
+      cash: summary.Cash.amount,
+      card: summary.Card.amount,
+      transfer: summary.Transfer.amount,
+      total: total,
+      counts: {
+        cash: summary.Cash.count,
+        card: summary.Card.count,
+        transfer: summary.Transfer.count,
+        free: summary.Free.count
+      },
+      carsStillInside: Object.keys(activeVehiclesMap).length,
+      timestamp: now
+    }).then(() => {
+      alert('Тайлан амжилттай илгээгдлээ!');
+      // Start a fresh shift so the same cars aren't reported twice
+      localStorage.setItem('parking_shift_start', String(now));
+      listenShiftLogs();
+    }).catch((err) => alert('Тайлан илгээхэд алдаа гарлаа: ' + err.message));
+  });
+}
+
+// Admin: view submitted reports
+function listenShiftReports() {
+  if (currentRole !== 'admin') return;
+  const ref = db.ref('shift_reports').limitToLast(20);
+  ref.off('value');
+  ref.on('value', (snap) => {
+    const body = document.getElementById('shift-reports-body');
+    if (!body) return;
+    const reports = Object.values(snap.val() || {}).sort((a, b) => b.timestamp - a.timestamp);
+    body.innerHTML = '';
+    if (reports.length === 0) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">Тайлан алга</td></tr>';
+      return;
+    }
+    reports.forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${r.staff}</strong></td>
+        <td>${formatDateTime(r.shiftStart)} → ${formatDateTime(r.shiftEnd)}</td>
+        <td>₮${(r.cash || 0).toLocaleString()}</td>
+        <td>₮${(r.card || 0).toLocaleString()}</td>
+        <td>₮${(r.transfer || 0).toLocaleString()}</td>
+        <td><strong>₮${(r.total || 0).toLocaleString()}</strong></td>
+      `;
+      body.appendChild(tr);
+    });
+  });
+}
+
+// Fixes the empty "Сүүлийн бүртгэлүүд" table (this function was called but never defined)
+function renderActivityLog(historyData) {
+  historyBody.innerHTML = '';
+  Object.entries(historyData)
+    .sort((a, b) => b[1].timestamp - a[1].timestamp)
+    .forEach(([key, record]) => {
+      const row = document.createElement('tr');
+      const deleteBtn = currentRole === 'admin'
+        ? `<td><button onclick="deleteRecord('${key}')" class="btn-danger">Delete</button></td>`
+        : '';
+      row.innerHTML = `
+        <td><strong>${record.plate}</strong></td>
+        <td>${record.entryStaff} / ${record.exitStaff}</td>
+        <td><strong>₮${Number(record.fee).toLocaleString()}</strong></td>
+        ${deleteBtn}
+      `;
+      historyBody.appendChild(row);
+    });
+}
 
 init();
 
@@ -65,6 +244,8 @@ function init() {
       qrSection.style.display = 'none';
       adminColHeader.style.display = 'none';
     }
+    listenShiftLogs();
+    listenShiftReports();
   } else {
     loginOverlay.style.display = 'flex';
   }
@@ -99,6 +280,7 @@ function loginUser(username, role) {
   currentUser = username;
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
+  localStorage.setItem('parking_shift_start', String(Date.now()));
   localStorage.setItem('parking_role', currentRole);
   
   document.getElementById('login-username').value = '';
@@ -130,6 +312,7 @@ function logout() {
   
   // Clear local storage session
   localStorage.removeItem('parking_user');
+  localStorage.removeItem('parking_shift_start');
   localStorage.removeItem('parking_role');
   currentUser = null;
   currentRole = 'employee';
@@ -492,7 +675,7 @@ function confirmCheckout(paymentMethod) {
       entryStaff: v.entryStaff,
       exitStaff: currentUser,
       duration: v.durationText,
-      fee: v.calculatedFee,
+      fee: paymentMethod === 'Free' ? 0 : v.calculatedFee,
       paymentMethod: paymentMethod, // Log payment method to Firebase
       timestamp: Date.now()
     });
