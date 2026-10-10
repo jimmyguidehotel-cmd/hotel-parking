@@ -137,8 +137,44 @@ function renderShiftSummary() {
   `;
   body.appendChild(totalRow);
 }
+// ==========================================
+// TELEGRAM NOTIFICATION
+// ==========================================
+const TELEGRAM_BOT_TOKEN = '8909979204:AAH9IQfyZsOf2N0rKSRO51zvivz2E5i7oVU';
+const TELEGRAM_CHAT_ID = '8383510896';
+
+function buildReportText(report) {
+  const money = (n) => '₮' + (Number(n) || 0).toLocaleString();
+  return [
+    '📋 Ээлжийн тайлан',
+    `👤 Ажилтан: ${report.staff}`,
+    `🕒 ${formatDateTime(report.shiftStart)} → ${formatDateTime(report.shiftEnd)}`,
+    '',
+    `💵 Бэлэн мөнгө: ${money(report.cash)} (${report.counts.cash})`,
+    `💳 Карт: ${money(report.card)} (${report.counts.card})`,
+    `🏦 Данс: ${money(report.transfer)} (${report.counts.transfer})`,
+    `🆓 Үнэгүй: ${report.counts.free} машин`,
+    '',
+    `💰 НИЙТ: ${money(report.total)}`,
+    `🚗 Зогсоолд үлдсэн: ${report.carsStillInside} машин`
+  ].join('\n');
+}
+
+function sendTelegramReport(report) {
+  return fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_I,
+      text: buildReportText(report)
+    })
+  }).then((res) => {
+    if (!res.ok) throw new Error('Telegram error ' + res.status);
+  });
+}
 
 // Send end-of-shift report to Firebase
+// Send end-of-shift report to Firebase + Telegram
 const sendReportBtn = document.getElementById('send-report-btn');
 if (sendReportBtn) {
   sendReportBtn.addEventListener('click', () => {
@@ -151,7 +187,7 @@ if (sendReportBtn) {
     if (!confirm('Ээлжийн тайланг илгээх үү?\nИлгээсний дараа тоолуур шинэчлэгдэнэ.')) return;
 
     const now = Date.now();
-    db.ref('shift_reports').push({
+    const report = {
       staff: currentUser,
       shiftStart: getShiftStart(),
       shiftEnd: now,
@@ -167,12 +203,25 @@ if (sendReportBtn) {
       },
       carsStillInside: Object.keys(activeVehiclesMap).length,
       timestamp: now
-    }).then(() => {
-      alert('Тайлан амжилттай илгээгдлээ!');
-      // Start a fresh shift so the same cars aren't reported twice
-      localStorage.setItem('parking_shift_start', String(now));
-      listenShiftLogs();
-    }).catch((err) => alert('Тайлан илгээхэд алдаа гарлаа: ' + err.message));
+    };
+
+    sendReportBtn.disabled = true;
+
+    // 1) Save the permanent record first
+    db.ref('shift_reports').push(report)
+      .then(() => {
+        // 2) Then notify Telegram (a failure here doesn't lose the report)
+        return sendTelegramReport(report)
+          .then(() => alert('Тайлан амжилттай илгээгдлээ!'))
+          .catch(() => alert('Тайлан хадгалагдлаа, гэхдээ Telegram руу илгээж чадсангүй.'));
+      })
+      .then(() => {
+        // Start a fresh shift so the same cars aren't reported twice
+        localStorage.setItem('parking_shift_start', String(now));
+        listenShiftLogs();
+      })
+      .catch((err) => alert('Тайлан илгээхэд алдаа гарлаа: ' + err.message))
+      .finally(() => { sendReportBtn.disabled = false; });
   });
 }
 
