@@ -64,8 +64,25 @@ function startOfToday() {
   return d.getTime();
 }
 
+let shiftStartTs = parseInt(localStorage.getItem('parking_shift_start'), 10) || null;
+
 function getShiftStart() {
-  return parseInt(localStorage.getItem('parking_shift_start'), 10) || startOfToday();
+  return shiftStartTs || startOfToday();
+}
+
+// Resume the employee's open shift from Firebase, or start a new one
+function loadShiftStart(username) {
+  const ref = db.ref(`active_shifts/${username}`);
+  return ref.once('value').then((snap) => {
+    const saved = snap.val();
+    if (saved && saved.start) {
+      shiftStartTs = saved.start;            // resume the earlier shift
+    } else {
+      shiftStartTs = Date.now();             // first login of a new shift
+      ref.set({ start: shiftStartTs });
+    }
+    localStorage.setItem('parking_shift_start', String(shiftStartTs));
+  });
 }
 
 function formatDateTime(ts) {
@@ -217,7 +234,11 @@ if (sendReportBtn) {
       })
       .then(() => {
         // Start a fresh shift so the same cars aren't reported twice
+        // Report sent = shift over, so the next shift starts from now
+        shiftStartTs = now;
         localStorage.setItem('parking_shift_start', String(now));
+        db.ref(`active_shifts/${currentUser}`).set({ start: now });
+        listenShiftLogs();
         listenShiftLogs();
       })
       .catch((err) => alert('Тайлан илгээхэд алдаа гарлаа: ' + err.message))
@@ -293,7 +314,7 @@ function init() {
       qrSection.style.display = 'none';
       adminColHeader.style.display = 'none';
     }
-    listenShiftLogs();
+    loadShiftStart(currentUser).finally(listenShiftLogs);
     listenShiftReports();
   } else {
     loginOverlay.style.display = 'flex';
@@ -329,7 +350,6 @@ function loginUser(username, role) {
   currentUser = username;
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
-  localStorage.setItem('parking_shift_start', String(Date.now()));
   localStorage.setItem('parking_role', currentRole);
   
   document.getElementById('login-username').value = '';
