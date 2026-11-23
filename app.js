@@ -23,12 +23,19 @@ let activeVehiclesMap = {};
 let historyLogMap = {};
 let selectedVehicleKey = null;
 let freeVehiclesMap = {};
+let listenersStarted = false; // prevents duplicate Firebase listeners
 
-let rates = {
-  halfHourRate: 1000,
-  cap5to12Hrs: 10000,
-  dayRate: 20000
-};
+// Flexible rate tiers: "stays up to X minutes cost Y in total"
+const DEFAULT_TIERS = [
+  { upTo: 10,   fee: 1500 },
+  { upTo: 60,   fee: 3000 },
+  { upTo: 120,  fee: 3000 },
+  { upTo: 360,  fee: 10000 },
+  { upTo: 1440, fee: 20000 }
+];
+
+let rates = { tiers: DEFAULT_TIERS, dayRate: 20000 };
+let tiersDraft = DEFAULT_TIERS.map(t => ({ ...t }));
 
 // DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
@@ -45,6 +52,7 @@ const activeCount = document.getElementById('active-count');
 const adminPanel = document.getElementById('admin-panel');
 const qrSection = document.getElementById('qr-section');
 const adminColHeader = document.getElementById('admin-col-header');
+
 // ==========================================
 // SHIFT SUMMARY & REPORTS
 // ==========================================
@@ -154,6 +162,7 @@ function renderShiftSummary() {
   `;
   body.appendChild(totalRow);
 }
+
 // ==========================================
 // TELEGRAM NOTIFICATION
 // ==========================================
@@ -190,7 +199,6 @@ function sendTelegramReport(report) {
   });
 }
 
-// Send end-of-shift report to Firebase
 // Send end-of-shift report to Firebase + Telegram
 const sendReportBtn = document.getElementById('send-report-btn');
 if (sendReportBtn) {
@@ -233,12 +241,10 @@ if (sendReportBtn) {
           .catch(() => alert('Тайлан хадгалагдлаа, гэхдээ Telegram руу илгээж чадсангүй.'));
       })
       .then(() => {
-        // Start a fresh shift so the same cars aren't reported twice
         // Report sent = shift over, so the next shift starts from now
         shiftStartTs = now;
         localStorage.setItem('parking_shift_start', String(now));
         db.ref(`active_shifts/${currentUser}`).set({ start: now });
-        listenShiftLogs();
         listenShiftLogs();
       })
       .catch((err) => alert('Тайлан илгээхэд алдаа гарлаа: ' + err.message))
@@ -275,7 +281,7 @@ function listenShiftReports() {
   });
 }
 
-// Fixes the empty "Сүүлийн бүртгэлүүд" table (this function was called but never defined)
+// "Сүүлийн бүртгэлүүд" table
 function renderActivityLog(historyData) {
   historyBody.innerHTML = '';
   Object.entries(historyData)
@@ -303,7 +309,7 @@ function init() {
     currentUserDisplay.textContent = currentUser;
     roleBadge.textContent = currentRole.toUpperCase();
     roleBadge.className = `role-badge badge-${currentRole}`;
-    
+
     if (currentRole === 'admin') {
       adminPanel.style.display = 'block';
       qrSection.style.display = 'block';
@@ -324,7 +330,6 @@ function init() {
   runAutoCleanup();
 }
 
-// User Authentication (Login)
 // User Authentication (Login)
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -351,7 +356,7 @@ function loginUser(username, role) {
   currentRole = role;
   localStorage.setItem('parking_user', currentUser);
   localStorage.setItem('parking_role', currentRole);
-  
+
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
 
@@ -374,11 +379,10 @@ function loginUser(username, role) {
   }, 3000);
 }
 
-// Dedicated Logout Function
 // Logout with custom farewell panel
 function logout() {
   const name = currentUser ? currentUser : 'User';
-  
+
   // Clear local storage session
   localStorage.removeItem('parking_user');
   localStorage.removeItem('parking_shift_start');
@@ -407,6 +411,7 @@ function logout() {
     window.location.reload();
   }, 3000);
 }
+
 // Account Creation (Admin Only)
 createUserForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -510,7 +515,7 @@ if (addFreeVehicleForm) {
     const mongolianPlateRegex = /^\d{4}[A-ZА-ЯӨҮ]{3}$/i;
 
     if (!mongolianPlateRegex.test(plateInput)) {
-      alert('Улсын Дугаар буруу байна!\4 тоо, 3 үсэг форматаар бичнэ үү (жишээ нь: 1234АБВ эсвэл 1234ABC).');
+      alert('Улсын Дугаар буруу байна!\n4 тоо, 3 үсэг форматаар бичнэ үү (жишээ нь: 1234АБВ эсвэл 1234ABC).');
       return;
     }
 
@@ -537,34 +542,109 @@ function removeFreeVehicle(key) {
   }
 }
 
+// ==========================================
+// FLEXIBLE RATE TIERS (ADMIN)
+// ==========================================
+function normalizeTiers(raw) {
+  return Object.values(raw || {})
+    .map(t => ({ upTo: Number(t.upTo), fee: Number(t.fee) }))
+    .filter(t => t.upTo > 0 && t.fee >= 0)
+    .sort((a, b) => a.upTo - b.upTo);
+}
+
+function minutesToText(m) {
+  const h = Math.floor(m / 60), r = m % 60;
+  if (!m || m <= 0) return '';
+  return h > 0 ? `${h}ц ${r}м` : `${r}м`;
+}
+
+function renderTierEditor() {
+  const body = document.getElementById('rate-tiers-body');
+  const dayInput = document.getElementById('rate-day');
+  if (!body) return;
+  if (dayInput) dayInput.value = rates.dayRate;
+
+  body.innerHTML = '';
+  tiersDraft.forEach((t, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="number" min="1" max="1440" value="${t.upTo}" data-i="${i}" data-f="upTo">
+        <small class="tier-text" style="color:#64748b;">${minutesToText(t.upTo)} хүртэл</small>
+      </td>
+      <td><input type="number" min="0" step="500" value="${t.fee}" data-i="${i}" data-f="fee"></td>
+      <td><button type="button" class="btn-danger" onclick="removeTier(${i})">✕</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = Number(e.target.dataset.i), f = e.target.dataset.f;
+      tiersDraft[i][f] = Number(e.target.value);
+      if (f === 'upTo') {
+        e.target.parentElement.querySelector('.tier-text').textContent =
+          minutesToText(tiersDraft[i].upTo) + ' хүртэл';
+      }
+    });
+  });
+}
+
+function removeTier(i) {
+  tiersDraft.splice(i, 1);
+  renderTierEditor();
+}
+
+const addTierBtn = document.getElementById('add-tier-btn');
+if (addTierBtn) {
+  addTierBtn.addEventListener('click', () => {
+    const last = tiersDraft[tiersDraft.length - 1];
+    tiersDraft.push({ upTo: last ? Math.min(1440, last.upTo + 60) : 30, fee: last ? last.fee : 1000 });
+    renderTierEditor();
+  });
+}
+
 // Handle Parking Rate Settings Form Submission (Admin)
 const rateForm = document.getElementById('rate-settings-form');
 if (rateForm) {
   rateForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
-    const halfHour = parseInt(document.getElementById('rate-30min').value, 10);
-    const cap5h = parseInt(document.getElementById('rate-5to12h').value, 10);
-    const dayCap = parseInt(document.getElementById('rate-24h').value, 10);
+
+    const dayRate = parseInt(document.getElementById('rate-day').value, 10);
+    const tiers = tiersDraft.map(t => ({ upTo: Number(t.upTo), fee: Number(t.fee) }));
+
+    if (tiers.length === 0) { alert('Хамгийн багадаа 1 мөр байх ёстой.'); return; }
+    if (isNaN(dayRate) || dayRate < 0) { alert('24 цагийн үнийг зөв оруулна уу.'); return; }
+
+    for (let i = 0; i < tiers.length; i++) {
+      const t = tiers[i];
+      if (!(t.upTo > 0) || t.upTo > 1440 || isNaN(t.fee) || t.fee < 0) {
+        alert(`${i + 1}-р мөр буруу байна (хугацаа 1–1440 минут, үнэ 0-ээс их).`);
+        return;
+      }
+      if (i > 0 && t.upTo <= tiers[i - 1].upTo) {
+        alert(`${i + 1}-р мөрийн хугацаа өмнөх мөрөөс их байх ёстой.`);
+        return;
+      }
+    }
 
     db.ref('rate_settings').set({
-      halfHourRate: halfHour,
-      cap5to12Hrs: cap5h,
-      dayRate: dayCap,
+      tiers: tiers,
+      dayRate: dayRate,
       updatedBy: currentUser,
       timestamp: Date.now()
-    }).then(() => {
-      alert('Parking rates updated successfully!');
-    }).catch((err) => {
-      alert('Error saving rates: ' + err.message);
-    });
+    }).then(() => alert('Үнэ амжилттай хадгалагдлаа!'))
+      .catch((err) => alert('Алдаа: ' + err.message));
   });
 }
 
-
+renderTierEditor();
 
 // Listen to Database
 function setupRealtimeListeners() {
+  if (listenersStarted) return; // init() runs twice after login, so only attach once
+  listenersStarted = true;
+
   db.ref('accounts').on('value', (snap) => {
     accountsMap = snap.val() || {};
     if (currentRole === 'admin') renderUsersTable();
@@ -573,21 +653,19 @@ function setupRealtimeListeners() {
   db.ref('rate_settings').on('value', (snap) => {
     const val = snap.val();
     if (val) {
-      rates = { ...rates, ...val };
-      
-      const rate30Input = document.getElementById('rate-30min');
-      const rate5to12Input = document.getElementById('rate-5to12h');
-      const rate24Input = document.getElementById('rate-24h');
-
-      if (rate30Input) rate30Input.value = rates.halfHourRate || 1000;
-      if (rate5to12Input) rate5to12Input.value = rates.cap5to12Hrs || 10000;
-      if (rate24Input) rate24Input.value = rates.dayRate || 20000;
+      const tiers = normalizeTiers(val.tiers);
+      rates = {
+        tiers: tiers.length ? tiers : DEFAULT_TIERS,
+        dayRate: val.dayRate != null ? Number(val.dayRate) : 20000
+      };
     }
+    tiersDraft = rates.tiers.map(t => ({ ...t }));
+    renderTierEditor();
   });
 
   db.ref('active_vehicles').on('value', (snap) => {
     activeVehiclesMap = snap.val() || {};
-    renderActiveTable();
+    renderActiveTable(document.getElementById('search-plate').value);
   });
 
   db.ref('history_log').limitToLast(3).on('value', (snapshot) => {
@@ -627,7 +705,7 @@ checkinForm.addEventListener('submit', (e) => {
     entryStaff: currentUser,
     timestamp: Date.now()
   });
-  
+
   plateInput.value = '';
 });
 
@@ -652,55 +730,36 @@ function renderActiveTable(filter = '') {
 }
 
 function filterVehicles() {
-  const query = document.getElementById('search-plate').value;
-  renderActiveTable(query);
+  const input = document.getElementById('search-plate');
+  input.value = input.value.toUpperCase();
+  renderActiveTable(input.value);
 }
 
-
-// Updated Checkout Modal Handler
-// Dynamic parking fee calculation helper
+// Dynamic parking fee calculation using the admin's rate tiers
 function calculateParkingFee(totalMinutes, isFreeVehicle) {
   if (isFreeVehicle || totalMinutes <= 0) return 0;
 
-  const HALF_HOUR_RATE = rates.halfHourRate || 1000;
-  const CAP_5_TO_12_HRS = rates.cap5to12Hrs || 10000;
-  const DAY_RATE = rates.dayRate || 20000;
+  const tiers = rates.tiers;
+  const dayRate = Number(rates.dayRate) || 0;
 
-  const fullDays = Math.floor(totalMinutes / (24 * 60));
-  const remainingMinutes = totalMinutes % (24 * 60);
+  const fullDays = Math.floor(totalMinutes / 1440);
+  const remaining = totalMinutes % 1440;
 
   let remainingFee = 0;
-
-  if (remainingMinutes > 0) {
-    // 0 to 5 hours (0 - 300 mins)
-    if (remainingMinutes <= 300) {
-      const halfHourBlocks = Math.ceil(remainingMinutes / 30);
-      remainingFee = halfHourBlocks * HALF_HOUR_RATE;
-    } 
-    // 5 to 12 hours (301 - 720 mins)
-    else if (remainingMinutes <= 720) {
-      remainingFee = CAP_5_TO_12_HRS;
-    } 
-    // 12 to 17 hours (721 - 1020 mins)
-    else if (remainingMinutes <= 1020) {
-      const extraMinutes = remainingMinutes - 720;
-      const extraBlocks = Math.ceil(extraMinutes / 30);
-      remainingFee = CAP_5_TO_12_HRS + (extraBlocks * HALF_HOUR_RATE);
-    } 
-    // 17 to 24 hours (1021 - 1440 mins)
-    else {
-      remainingFee = DAY_RATE;
-    }
+  if (remaining > 0) {
+    // first tier whose limit covers the remaining time
+    const tier = tiers.find(t => remaining <= t.upTo);
+    remainingFee = tier ? tier.fee : dayRate; // past the last tier = full day price
   }
 
-  return (fullDays * DAY_RATE) + remainingFee;
+  return fullDays * dayRate + remainingFee;
 }
 
-// Updated Checkout Modal Handler
+// Checkout Modal Handler
 function openCheckoutModal(key) {
   selectedVehicleKey = key;
   const vehicle = activeVehiclesMap[key];
-  
+
   const entryTime = new Date(vehicle.entryTime);
   const exitTime = new Date();
   const totalMinutes = Math.max(1, Math.ceil((exitTime - entryTime) / (1000 * 60)));
@@ -722,23 +781,23 @@ function openCheckoutModal(key) {
 
   document.getElementById('modal-plate').textContent = vehicle.plate;
   document.getElementById('modal-duration').textContent = durationString;
-  
+
   if (isFreeVehicle) {
     document.getElementById('modal-fee').textContent = `₮0 (Free / Exempt Vehicle)`;
   } else {
     document.getElementById('modal-fee').textContent = `₮${fee.toLocaleString()}`;
   }
-  
+
   vehicle.calculatedFee = fee;
   vehicle.durationText = durationString;
   document.getElementById('receipt-modal').style.display = 'flex';
 }
 
-// Updated to accept the selected payment method ('Cash', 'Card', or 'Transfer')
+// Accepts the selected payment method ('Cash', 'Card', 'Transfer' or 'Free')
 function confirmCheckout(paymentMethod) {
   if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
     const v = activeVehiclesMap[selectedVehicleKey];
-    
+
     db.ref('history_log').push({
       plate: v.plate,
       entryStaff: v.entryStaff,
@@ -757,25 +816,6 @@ function confirmCheckout(paymentMethod) {
 function closeModal() {
   document.getElementById('receipt-modal').style.display = 'none';
   selectedVehicleKey = null;
-}
-function renderHistoryTable() {
-  historyBody.innerHTML = '';
-  const history = Object.entries(historyLogMap).sort((a,b) => b[1].timestamp - a[1].timestamp);
-
-  history.slice(0, 10).forEach(([key, record]) => {
-    const row = document.createElement('tr');
-    let deleteBtn = currentRole === 'admin' 
-      ? `<td><button onclick="deleteRecord('${key}')" class="btn-danger">Delete</button></td>` 
-      : '';
-
-    row.innerHTML = `
-      <td><strong>${record.plate}</strong></td>
-      <td>${record.entryStaff} / ${record.exitStaff}</td>
-      <td><strong>$${record.fee.toFixed(2)}</strong></td>
-      ${deleteBtn}
-    `;
-    historyBody.appendChild(row);
-  });
 }
 
 function deleteRecord(key) {
@@ -801,6 +841,7 @@ function generateQRCode() {
   container.innerHTML = '';
   new QRCode(container, { text: window.location.href, width: 120, height: 120 });
 }
+
 // Automatically cleanup logs older than 14 days (1,209,600,000 ms)
 function cleanupOldLogs() {
   const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
@@ -815,13 +856,14 @@ function cleanupOldLogs() {
         Object.keys(oldLogs).forEach((key) => {
           updates[`history_log/${key}`] = null; // null deletes the entry
         });
-        
+
         db.ref().update(updates)
           .then(() => console.log('Old logs (>14 days) cleaned up successfully.'))
           .catch((err) => console.error('Error cleaning up logs:', err));
       }
     });
 }
+
 // ==========================================
 // MANUAL VEHICLE REGISTRATION (ADMIN)
 // ==========================================
