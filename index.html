@@ -167,7 +167,7 @@
     <!-- ADMIN PANEL (Visible only to Admin) -->
     <div class="card admin-card" id="admin-panel" style="display:none;">
       <h3 style="margin-top:0; color:var(--admin);">Admin Control Panel</h3>
-      
+
       <!-- Create Account Form -->
       <h4 style="margin-bottom:8px;">Create Employee Account</h4>
       <form id="create-user-form" style="margin-bottom: 16px;">
@@ -202,13 +202,13 @@
       <form id="add-free-vehicle-form" style="margin-bottom: 16px;">
         <div class="form-group">
           <label for="free-plate-input">License Plate</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             id="free-plate-input"
-            placeholder="e.g. 1234АБВ or 1234ABC" 
-            maxlength="7" 
-            style="text-transform: uppercase;" 
-            required 
+            placeholder="e.g. 1234АБВ or 1234ABC"
+            maxlength="7"
+            style="text-transform: uppercase;"
+            required
           />
         </div>
         <div class="form-group">
@@ -217,7 +217,7 @@
         </div>
         <button type="submit" class="btn-admin" style="background-color: #16a34a;">+ Add Free Vehicle</button>
       </form>
-    
+
       <table>
         <thead>
           <tr>
@@ -230,7 +230,6 @@
           <!-- Populated dynamically via app.js -->
         </tbody>
       </table>
-      <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
 
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
 
@@ -258,26 +257,30 @@
         </div>
         <button type="submit" class="btn-admin">+ Гараар бүртгэх</button>
       </form>
-      <!-- Rate Configuration -->
-      <h4 style="margin-bottom:8px;">Rate Configuration (₮)</h4>
-      <form id="rate-settings-form">
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-bottom: 12px;">
-          <div class="form-group">
-            <label for="rate-30min">30 Min Rate (₮)</label>
-            <input type="number" id="rate-30min" step="500" min="0" placeholder="1000" required />
-          </div>
-          <div class="form-group">
-            <label for="rate-5to12h">5–12 Hour Cap (₮)</label>
-            <input type="number" id="rate-5to12h" step="500" min="0" placeholder="10000" required />
-          </div>
-          <div class="form-group">
-            <label for="rate-24h">24 Hour Cap (₮)</label>
-            <input type="number" id="rate-24h" step="1000" min="0" placeholder="20000" required />
-          </div>
-        </div>
-        <button type="submit" class="btn-admin" style="margin-bottom:12px;">Update Rates</button>
-      </form>
+
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+
+      <!-- Rate Configuration (flexible time tiers) -->
+      <h4 style="margin-bottom:8px;">Зогсоолын үнийн тохиргоо (₮)</h4>
+      <form id="rate-settings-form">
+        <table>
+          <thead>
+            <tr><th>Хугацаа (минут хүртэл)</th><th>Нийт төлбөр (₮)</th><th></th></tr>
+          </thead>
+          <tbody id="rate-tiers-body"></tbody>
+        </table>
+        <button type="button" id="add-tier-btn" class="btn-secondary" style="margin:8px 0;">+ Мөр нэмэх</button>
+
+        <div class="form-group">
+          <label for="rate-day">Бүтэн 24 цаг тутмын үнэ (₮)</label>
+          <input type="number" id="rate-day" min="0" step="1000" required />
+        </div>
+        <button type="submit" class="btn-admin" style="margin-bottom:12px;">Үнэ хадгалах</button>
+      </form>
+
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+
+      <!-- Shift Reports (admin view) -->
       <h4 style="margin-bottom:8px;">Ээлжийн тайлангууд</h4>
       <table>
         <thead>
@@ -293,13 +296,13 @@
       <form id="checkin-form">
         <div class="form-group">
           <label for="plate-input">Улсын Дугаар</label>
-          <input 
+          <input
             type="text"
             id="plate-input"
-            placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC" 
-            maxlength="7" 
-            style="text-transform: uppercase;" 
-            required 
+            placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC"
+            maxlength="7"
+            style="text-transform: uppercase;"
+            required
           />
         </div>
         <button type="submit">Бүртгэх</button>
@@ -311,13 +314,13 @@
       <h3 style="margin-top:0;">Машин гаргах</h3>
       <div class="form-group">
         <label for="search-plate">Номероор хайх</label>
-        <input 
-          type="text" 
+        <input
+          type="text"
           id="search-plate"
-          placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC" 
-          maxlength="7" 
-          style="text-transform: uppercase;" 
-          required 
+          placeholder="жишээ нь: 1234УАБ эсвэл 1234ABC"
+          maxlength="7"
+          style="text-transform: uppercase;"
+          oninput="filterVehicles()"
         />
       </div>
     </div>
@@ -337,6 +340,7 @@
         <tbody id="vehicle-table-body"></tbody>
       </table>
     </div>
+
     <!-- Shift Summary -->
     <div class="card" id="shift-card">
       <h3 style="margin-top:0;">Миний ээлжийн орлого</h3>
@@ -375,27 +379,25 @@
   </div>
 
   <!-- Checkout Receipt Modal -->
-  <!-- Receipt Modal -->
-  <!-- Receipt Modal -->
   <div id="receipt-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 9999;">
     <div class="modal-content" style="background: #ffffff; padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);">
       <h3 style="color: #1e3a8a; margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem;">Машины гаралтыг бүртгэх</h3>
-      
+
       <div style="text-align: left; background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem; border: 1px solid #e2e8f0;">
         <p style="margin: 0.35rem 0; color: #334155;"><strong>Улсын Дугаар:</strong> <span id="modal-plate"></span></p>
         <p style="margin: 0.35rem 0; color: #334155;"><strong>Хугацаа:</strong> <span id="modal-duration"></span></p>
         <p style="margin: 0.35rem 0; font-size: 1.1rem; color: #1e3a8a;"><strong>Төлбөр:</strong> <span id="modal-fee"></span></p>
       </div>
-  
+
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <button onclick="confirmCheckout('Cash')" style="background-color: #16a34a; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
           Бэлэн мөнгө
         </button>
-        
+
         <button onclick="confirmCheckout('Card')" style="background-color: #2563eb; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
           Карт
         </button>
-        
+
         <button onclick="confirmCheckout('Transfer')" style="background-color: #9333ea; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
           Данс
         </button>
@@ -403,7 +405,7 @@
         <button onclick="confirmCheckout('Free')" style="background-color: #059669; color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
           Үнэгүй
         </button>
-  
+
         <button onclick="closeModal()" style="background-color: #64748b; color: white; border: none; padding: 0.6rem; border-radius: 6px; cursor: pointer; margin-top: 0.25rem;">
           Цуцлах
         </button>
