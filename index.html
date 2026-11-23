@@ -263,18 +263,30 @@
       <!-- Rate Configuration (flexible time tiers) -->
       <h4 style="margin-bottom:8px;">Зогсоолын үнийн тохиргоо (₮)</h4>
       <form id="rate-settings-form">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px;">
+          <div class="form-group">
+            <label for="rate-first-min">Эхний хугацаа (минут)</label>
+            <input type="number" id="rate-first-min" min="0" max="120" required />
+          </div>
+          <div class="form-group">
+            <label for="rate-first-fee">Эхний хугацааны үнэ (₮)</label>
+            <input type="number" id="rate-first-fee" min="0" required />
+          </div>
+          <div class="form-group">
+            <label for="rate-hour">Цаг тутмын үнэ (₮)</label>
+            <input type="number" id="rate-hour" min="1" required />
+          </div>
+        </div>
+
+        <h5 style="margin:8px 0 2px;">Үнэ түгжих хугацаа</h5>
+        <small style="color:#64748b;">Үнэ цаг тутам өсөөд "дээд үнэ"-д хүрмэгц тухайн хугацаа дуустал тэр үнэд түгжигдэнэ. Сүүлийн мөр нь 1440 минут (24 цаг).</small>
         <table>
           <thead>
-            <tr><th>Хугацаа (минут хүртэл)</th><th>Нийт төлбөр (₮)</th><th></th></tr>
+            <tr><th>Хугацаа (минут хүртэл)</th><th>Түгжих дээд үнэ (₮)</th><th></th></tr>
           </thead>
-          <tbody id="rate-tiers-body"></tbody>
+          <tbody id="rate-locks-body"></tbody>
         </table>
-        <button type="button" id="add-tier-btn" class="btn-secondary" style="margin:8px 0;">+ Мөр нэмэх</button>
-
-        <div class="form-group">
-          <label for="rate-day">Бүтэн 24 цаг тутмын үнэ (₮)</label>
-          <input type="number" id="rate-day" min="0" step="1000" required />
-        </div>
+        <button type="button" id="add-lock-btn" class="btn-secondary" style="margin:8px 0;">+ Мөр нэмэх</button>
         <button type="submit" class="btn-admin" style="margin-bottom:12px;">Үнэ хадгалах</button>
       </form>
 
@@ -415,6 +427,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
