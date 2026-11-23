@@ -80,6 +80,7 @@
     .btn-secondary { background-color: #64748b; }
     .btn-danger { background-color: var(--danger); padding: 6px 12px; font-size: 0.85rem; width: auto; }
     .btn-admin { background-color: var(--admin); }
+    .btn-edit { background-color: #2563eb; padding: 6px 12px; font-size: 0.85rem; width: auto; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 
@@ -375,7 +376,7 @@
             <th>Улсын Дугаар</th>
             <th>Орсон/Гарсан цаг</th>
             <th>Төлбөр</th>
-            <th id="admin-col-header" style="display:none;">Manage</th>
+            <th id="admin-col-header">Үйлдэл</th>
           </tr>
         </thead>
         <tbody id="history-table-body"></tbody>
@@ -426,8 +427,25 @@
     </div>
   </div>
 
+  <!-- Edit Payment Method Modal -->
+  <div id="edit-payment-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 9999;">
+    <div style="background: #ffffff; padding: 1.5rem; border-radius: 12px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);">
+      <h3 style="color: #1e3a8a; margin-top: 0; font-size: 1.15rem;">Төлбөрийн хэлбэр засах</h3>
+      <p style="margin: 0.25rem 0;"><strong id="edit-plate"></strong> — <span id="edit-fee"></span></p>
+      <p style="margin: 0.25rem 0 1rem; color: #64748b; font-size: 0.9rem;">Одоогийн: <strong id="edit-current"></strong></p>
+
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <button onclick="changePaymentMethod('Cash')" style="background-color: #16a34a;">Бэлэн мөнгө</button>
+        <button onclick="changePaymentMethod('Card')" style="background-color: #2563eb;">Карт</button>
+        <button onclick="changePaymentMethod('Transfer')" style="background-color: #9333ea;">Данс</button>
+        <button onclick="changePaymentMethod('Free')" style="background-color: #059669;">Үнэгүй</button>
+        <button onclick="closeEditPayment()" style="background-color: #64748b;">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
