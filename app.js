@@ -25,17 +25,19 @@ let selectedVehicleKey = null;
 let freeVehiclesMap = {};
 let listenersStarted = false; // prevents duplicate Firebase listeners
 
-// Flexible rate tiers: "stays up to X minutes cost Y in total"
-const DEFAULT_TIERS = [
-  { upTo: 10,   fee: 1500 },
-  { upTo: 60,   fee: 3000 },
-  { upTo: 120,  fee: 3000 },
-  { upTo: 360,  fee: 10000 },
-  { upTo: 1440, fee: 20000 }
-];
+// Rate settings: first short period, then a price per started hour, with "locks" (caps)
+const DEFAULT_RATES = {
+  firstMinutes: 10,
+  firstFee: 1500,
+  hourRate: 3000,
+  locks: [
+    { until: 720,  price: 20000 },  // price grows until it hits 20000, stays locked until 12h
+    { until: 1440, price: 40000 }   // then grows until 40000, locked until 24h
+  ]
+};
 
-let rates = { tiers: DEFAULT_TIERS, dayRate: 20000 };
-let tiersDraft = DEFAULT_TIERS.map(t => ({ ...t }));
+let rates = JSON.parse(JSON.stringify(DEFAULT_RATES));
+let locksDraft = DEFAULT_RATES.locks.map(l => ({ ...l }));
 
 // DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
@@ -543,13 +545,13 @@ function removeFreeVehicle(key) {
 }
 
 // ==========================================
-// FLEXIBLE RATE TIERS (ADMIN)
+// RATE SETTINGS EDITOR (ADMIN)
 // ==========================================
-function normalizeTiers(raw) {
+function normalizeLocks(raw) {
   return Object.values(raw || {})
-    .map(t => ({ upTo: Number(t.upTo), fee: Number(t.fee) }))
-    .filter(t => t.upTo > 0 && t.fee >= 0)
-    .sort((a, b) => a.upTo - b.upTo);
+    .map(l => ({ until: Number(l.until), price: Number(l.price) }))
+    .filter(l => l.until > 0 && l.price >= 0)
+    .sort((a, b) => a.until - b.until);
 }
 
 function minutesToText(m) {
@@ -558,22 +560,24 @@ function minutesToText(m) {
   return h > 0 ? `${h}ц ${r}м` : `${r}м`;
 }
 
-function renderTierEditor() {
-  const body = document.getElementById('rate-tiers-body');
-  const dayInput = document.getElementById('rate-day');
+function renderRateEditor() {
+  const body = document.getElementById('rate-locks-body');
   if (!body) return;
-  if (dayInput) dayInput.value = rates.dayRate;
+
+  document.getElementById('rate-first-min').value = rates.firstMinutes;
+  document.getElementById('rate-first-fee').value = rates.firstFee;
+  document.getElementById('rate-hour').value = rates.hourRate;
 
   body.innerHTML = '';
-  tiersDraft.forEach((t, i) => {
+  locksDraft.forEach((l, i) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
-        <input type="number" min="1" max="1440" value="${t.upTo}" data-i="${i}" data-f="upTo">
-        <small class="tier-text" style="color:#64748b;">${minutesToText(t.upTo)} хүртэл</small>
+        <input type="number" min="1" max="1440" value="${l.until}" data-i="${i}" data-f="until">
+        <small class="lock-text" style="color:#64748b;">${minutesToText(l.until)} хүртэл</small>
       </td>
-      <td><input type="number" min="0" step="500" value="${t.fee}" data-i="${i}" data-f="fee"></td>
-      <td><button type="button" class="btn-danger" onclick="removeTier(${i})">✕</button></td>
+      <td><input type="number" min="0" value="${l.price}" data-i="${i}" data-f="price"></td>
+      <td><button type="button" class="btn-danger" onclick="removeLock(${i})">✕</button></td>
     `;
     body.appendChild(tr);
   });
@@ -581,26 +585,26 @@ function renderTierEditor() {
   body.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', (e) => {
       const i = Number(e.target.dataset.i), f = e.target.dataset.f;
-      tiersDraft[i][f] = Number(e.target.value);
-      if (f === 'upTo') {
-        e.target.parentElement.querySelector('.tier-text').textContent =
-          minutesToText(tiersDraft[i].upTo) + ' хүртэл';
+      locksDraft[i][f] = Number(e.target.value);
+      if (f === 'until') {
+        e.target.parentElement.querySelector('.lock-text').textContent =
+          minutesToText(locksDraft[i].until) + ' хүртэл';
       }
     });
   });
 }
 
-function removeTier(i) {
-  tiersDraft.splice(i, 1);
-  renderTierEditor();
+function removeLock(i) {
+  locksDraft.splice(i, 1);
+  renderRateEditor();
 }
 
-const addTierBtn = document.getElementById('add-tier-btn');
-if (addTierBtn) {
-  addTierBtn.addEventListener('click', () => {
-    const last = tiersDraft[tiersDraft.length - 1];
-    tiersDraft.push({ upTo: last ? Math.min(1440, last.upTo + 60) : 30, fee: last ? last.fee : 1000 });
-    renderTierEditor();
+const addLockBtn = document.getElementById('add-lock-btn');
+if (addLockBtn) {
+  addLockBtn.addEventListener('click', () => {
+    const last = locksDraft[locksDraft.length - 1];
+    locksDraft.push({ until: last ? Math.min(1440, last.until + 60) : 720, price: last ? last.price : 20000 });
+    renderRateEditor();
   });
 }
 
@@ -610,27 +614,35 @@ if (rateForm) {
   rateForm.addEventListener('submit', (e) => {
     e.preventDefault();
 
-    const dayRate = parseInt(document.getElementById('rate-day').value, 10);
-    const tiers = tiersDraft.map(t => ({ upTo: Number(t.upTo), fee: Number(t.fee) }));
+    const firstMinutes = parseInt(document.getElementById('rate-first-min').value, 10);
+    const firstFee = parseInt(document.getElementById('rate-first-fee').value, 10);
+    const hourRate = parseInt(document.getElementById('rate-hour').value, 10);
+    const locks = locksDraft.map(l => ({ until: Number(l.until), price: Number(l.price) }));
 
-    if (tiers.length === 0) { alert('Хамгийн багадаа 1 мөр байх ёстой.'); return; }
-    if (isNaN(dayRate) || dayRate < 0) { alert('24 цагийн үнийг зөв оруулна уу.'); return; }
+    if (isNaN(firstMinutes) || firstMinutes < 0 || isNaN(firstFee) || firstFee < 0) {
+      alert('Эхний хугацаа болон үнийг зөв оруулна уу.'); return;
+    }
+    if (isNaN(hourRate) || hourRate <= 0) { alert('Цаг тутмын үнийг зөв оруулна уу.'); return; }
+    if (locks.length === 0) { alert('Хамгийн багадаа 1 мөр байх ёстой.'); return; }
 
-    for (let i = 0; i < tiers.length; i++) {
-      const t = tiers[i];
-      if (!(t.upTo > 0) || t.upTo > 1440 || isNaN(t.fee) || t.fee < 0) {
-        alert(`${i + 1}-р мөр буруу байна (хугацаа 1–1440 минут, үнэ 0-ээс их).`);
-        return;
+    for (let i = 0; i < locks.length; i++) {
+      const l = locks[i];
+      if (!(l.until > 0) || l.until > 1440 || isNaN(l.price) || l.price < 0) {
+        alert(`${i + 1}-р мөр буруу байна (хугацаа 1–1440 минут).`); return;
       }
-      if (i > 0 && t.upTo <= tiers[i - 1].upTo) {
-        alert(`${i + 1}-р мөрийн хугацаа өмнөх мөрөөс их байх ёстой.`);
-        return;
+      if (i > 0 && l.until <= locks[i - 1].until) {
+        alert(`${i + 1}-р мөрийн хугацаа өмнөх мөрөөс их байх ёстой.`); return;
       }
+      if (i > 0 && l.price < locks[i - 1].price) {
+        alert(`${i + 1}-р мөрийн үнэ өмнөх мөрөөс бага байж болохгүй.`); return;
+      }
+    }
+    if (locks[locks.length - 1].until !== 1440) {
+      alert('Сүүлийн мөрийн хугацаа 1440 минут (24 цаг) байх ёстой. Энэ нь 24 цагийн үнэ болно.'); return;
     }
 
     db.ref('rate_settings').set({
-      tiers: tiers,
-      dayRate: dayRate,
+      firstMinutes, firstFee, hourRate, locks,
       updatedBy: currentUser,
       timestamp: Date.now()
     }).then(() => alert('Үнэ амжилттай хадгалагдлаа!'))
@@ -638,7 +650,7 @@ if (rateForm) {
   });
 }
 
-renderTierEditor();
+renderRateEditor();
 
 // Listen to Database
 function setupRealtimeListeners() {
@@ -652,15 +664,19 @@ function setupRealtimeListeners() {
 
   db.ref('rate_settings').on('value', (snap) => {
     const val = snap.val();
-    if (val) {
-      const tiers = normalizeTiers(val.tiers);
+    const locks = val ? normalizeLocks(val.locks) : [];
+    if (val && locks.length && val.hourRate != null) {
       rates = {
-        tiers: tiers.length ? tiers : DEFAULT_TIERS,
-        dayRate: val.dayRate != null ? Number(val.dayRate) : 20000
+        firstMinutes: val.firstMinutes != null ? Number(val.firstMinutes) : DEFAULT_RATES.firstMinutes,
+        firstFee: val.firstFee != null ? Number(val.firstFee) : DEFAULT_RATES.firstFee,
+        hourRate: Number(val.hourRate),
+        locks: locks
       };
+    } else {
+      rates = JSON.parse(JSON.stringify(DEFAULT_RATES)); // nothing saved in the new format yet
     }
-    tiersDraft = rates.tiers.map(t => ({ ...t }));
-    renderTierEditor();
+    locksDraft = rates.locks.map(l => ({ ...l }));
+    renderRateEditor();
   });
 
   db.ref('active_vehicles').on('value', (snap) => {
@@ -735,24 +751,36 @@ function filterVehicles() {
   renderActiveTable(input.value);
 }
 
-// Dynamic parking fee calculation using the admin's rate tiers
+// Parking fee: every started hour costs hourRate, but the price is "locked" at each
+// lock's price until that lock's time ends. A full 24h costs the last lock's price,
+// and the same pattern repeats for every extra day.
 function calculateParkingFee(totalMinutes, isFreeVehicle) {
   if (isFreeVehicle || totalMinutes <= 0) return 0;
 
-  const tiers = rates.tiers;
-  const dayRate = Number(rates.dayRate) || 0;
+  const { firstMinutes, firstFee, hourRate, locks } = rates;
+  const DAY = 1440;
+  const dayPrice = locks[locks.length - 1].price;
 
-  const fullDays = Math.floor(totalMinutes / 1440);
-  const remaining = totalMinutes % 1440;
+  const fullDays = Math.floor(totalMinutes / DAY);
+  const rem = totalMinutes % DAY;
+  if (rem === 0) return fullDays * dayPrice;
 
-  let remainingFee = 0;
-  if (remaining > 0) {
-    // first tier whose limit covers the remaining time
-    const tier = tiers.find(t => remaining <= t.upTo);
-    remainingFee = tier ? tier.fee : dayRate; // past the last tier = full day price
+  let fee = dayPrice;
+  if (fullDays === 0 && rem <= firstMinutes) {
+    fee = firstFee; // only the very first minutes of the stay
+  } else {
+    let base = 0, start = 0;
+    for (const lock of locks) {
+      if (rem <= lock.until) {
+        const hours = Math.ceil((rem - start) / 60);
+        fee = Math.min(base + hours * hourRate, lock.price);
+        break;
+      }
+      base = lock.price;
+      start = lock.until;
+    }
   }
-
-  return fullDays * dayRate + remainingFee;
+  return fullDays * dayPrice + fee;
 }
 
 // Checkout Modal Handler
