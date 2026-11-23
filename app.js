@@ -21,9 +21,12 @@ let currentRole = localStorage.getItem('parking_role') || 'АЖИЛТАН';
 let accountsMap = {};
 let activeVehiclesMap = {};
 let historyLogMap = {};
-let selectedVehicleKey = null;
 let freeVehiclesMap = {};
 let listenersStarted = false; // prevents duplicate Firebase listeners
+
+// Checkout "freeze": price and time are locked the moment the exit button is pressed
+let checkoutSnapshot = null;
+const FREEZE_MAX_MINUTES = 10; // a frozen price is refreshed if the modal stays open longer than this
 
 // Rate settings: first short period, then a price per started hour, with "locks" (caps)
 const DEFAULT_RATES = {
@@ -783,67 +786,101 @@ function calculateParkingFee(totalMinutes, isFreeVehicle) {
   return fullDays * dayPrice + fee;
 }
 
-// Checkout Modal Handler
-function openCheckoutModal(key) {
-  selectedVehicleKey = key;
-  const vehicle = activeVehiclesMap[key];
-
-  const entryTime = new Date(vehicle.entryTime);
-  const exitTime = new Date();
-  const totalMinutes = Math.max(1, Math.ceil((exitTime - entryTime) / (1000 * 60)));
+// ==========================================
+// CHECKOUT WITH FROZEN PRICE
+// ==========================================
+// Builds a locked copy of everything needed for this checkout. Nothing in the
+// database is changed, so pressing Cancel simply throws the copy away and the
+// parking time keeps running from the original entry time.
+function buildCheckoutSnapshot(key, vehicle) {
+  const frozenAt = Date.now();
+  const entryMs = new Date(vehicle.entryTime).getTime();
+  const totalMinutes = Math.max(1, Math.ceil((frozenAt - entryMs) / 60000));
 
   const cleanPlate = vehicle.plate.replace(/[.#$\[\]]/g, '').toUpperCase();
   const isFreeVehicle = !!freeVehiclesMap[cleanPlate];
-
-  // Dynamic fee calculation using Admin rate tiers
   const fee = calculateParkingFee(totalMinutes, isFreeVehicle);
 
-  const days = Math.floor(totalMinutes / (24 * 60));
-  const hrs = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const days = Math.floor(totalMinutes / 1440);
+  const hrs = Math.floor((totalMinutes % 1440) / 60);
   const mins = totalMinutes % 60;
+  const durationText = days > 0 ? `${days}d ${hrs}h ${mins}m` : `${hrs}h ${mins}m`;
 
-  let durationString = `${hrs}h ${mins}m`;
-  if (days > 0) {
-    durationString = `${days}d ${hrs}h ${mins}m`;
+  return {
+    key,
+    plate: vehicle.plate,
+    entryStaff: vehicle.entryStaff,
+    frozenAt,
+    totalMinutes,
+    durationText,
+    fee,
+    isFreeVehicle
+  };
+}
+
+function showCheckoutModal() {
+  const snap = checkoutSnapshot;
+  if (!snap) return;
+
+  document.getElementById('modal-plate').textContent = snap.plate;
+  document.getElementById('modal-duration').textContent = snap.durationText;
+  document.getElementById('modal-fee').textContent = snap.isFreeVehicle
+    ? '₮0 (Free / Exempt Vehicle)'
+    : `₮${snap.fee.toLocaleString()}`;
+
+  const note = document.getElementById('modal-frozen-note');
+  if (note) {
+    note.textContent = `🔒 Үнэ ${new Date(snap.frozenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} цагт хөлдсөн`;
   }
-
-  document.getElementById('modal-plate').textContent = vehicle.plate;
-  document.getElementById('modal-duration').textContent = durationString;
-
-  if (isFreeVehicle) {
-    document.getElementById('modal-fee').textContent = `₮0 (Free / Exempt Vehicle)`;
-  } else {
-    document.getElementById('modal-fee').textContent = `₮${fee.toLocaleString()}`;
-  }
-
-  vehicle.calculatedFee = fee;
-  vehicle.durationText = durationString;
   document.getElementById('receipt-modal').style.display = 'flex';
+}
+
+function openCheckoutModal(key) {
+  const vehicle = activeVehiclesMap[key];
+  if (!vehicle) return;
+  checkoutSnapshot = buildCheckoutSnapshot(key, vehicle);
+  showCheckoutModal();
 }
 
 // Accepts the selected payment method ('Cash', 'Card', 'Transfer' or 'Free')
 function confirmCheckout(paymentMethod) {
-  if (selectedVehicleKey && activeVehiclesMap[selectedVehicleKey]) {
-    const v = activeVehiclesMap[selectedVehicleKey];
+  const snap = checkoutSnapshot;
+  if (!snap) return;
 
-    db.ref('history_log').push({
-      plate: v.plate,
-      entryStaff: v.entryStaff,
-      exitStaff: currentUser,
-      duration: v.durationText,
-      fee: paymentMethod === 'Free' ? 0 : v.calculatedFee,
-      paymentMethod: paymentMethod, // Log payment method to Firebase
-      timestamp: Date.now()
-    });
-
-    db.ref(`active_vehicles/${selectedVehicleKey}`).remove();
+  const vehicle = activeVehiclesMap[snap.key];
+  if (!vehicle) {
+    alert('Энэ машин аль хэдийн гарсан байна.');
     closeModal();
+    return;
   }
+
+  // Safety: if the screen was left open for too long, refresh the price instead of undercharging
+  if (Date.now() - snap.frozenAt > FREEZE_MAX_MINUTES * 60000) {
+    checkoutSnapshot = buildCheckoutSnapshot(snap.key, vehicle);
+    showCheckoutModal();
+    alert(`Үнэ ${FREEZE_MAX_MINUTES} минутаас илүү хөлдсөн байсан тул шинэчлэгдлээ. Шинэ дүнг шалгаад дахин сонгоно уу.`);
+    return;
+  }
+
+  db.ref('history_log').push({
+    plate: snap.plate,
+    entryStaff: snap.entryStaff,
+    exitStaff: currentUser,
+    duration: snap.durationText,
+    fee: paymentMethod === 'Free' ? 0 : snap.fee,
+    paymentMethod: paymentMethod, // Log payment method to Firebase
+    exitTime: snap.frozenAt,      // the moment the price was frozen
+    timestamp: Date.now()
+  });
+
+  db.ref(`active_vehicles/${snap.key}`).remove();
+  closeModal();
 }
 
+// Cancel / close: the frozen copy is discarded, nothing was changed in the database
 function closeModal() {
   document.getElementById('receipt-modal').style.display = 'none';
-  selectedVehicleKey = null;
+  checkoutSnapshot = null;
 }
 
 function deleteRecord(key) {
