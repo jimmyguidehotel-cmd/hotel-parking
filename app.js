@@ -56,7 +56,6 @@ const historyBody = document.getElementById('history-table-body');
 const activeCount = document.getElementById('active-count');
 const adminPanel = document.getElementById('admin-panel');
 const qrSection = document.getElementById('qr-section');
-const adminColHeader = document.getElementById('admin-col-header');
 
 // ==========================================
 // SHIFT SUMMARY & REPORTS
@@ -286,24 +285,109 @@ function listenShiftReports() {
   });
 }
 
-// "Сүүлийн бүртгэлүүд" table
+// ==========================================
+// RECENT RECORDS ("Сүүлийн бүртгэлүүд") + PAYMENT METHOD CORRECTION
+// ==========================================
+let recentLogs = {};
+let editingLogKey = null;
+
+// Admin can edit any record; an employee can edit the records they checked out themselves
+function canEditRecord(record) {
+  return currentRole === 'admin' || record.exitStaff === currentUser;
+}
+
 function renderActivityLog(historyData) {
+  recentLogs = historyData;
   historyBody.innerHTML = '';
   Object.entries(historyData)
     .sort((a, b) => b[1].timestamp - a[1].timestamp)
     .forEach(([key, record]) => {
       const row = document.createElement('tr');
-      const deleteBtn = currentRole === 'admin'
-        ? `<td><button onclick="deleteRecord('${key}')" class="btn-danger">Delete</button></td>`
-        : '';
+      const methodText = PAYMENT_LABELS[record.paymentMethod] || '—';
+      const editedMark = record.edits ? ' ✏️' : '';
+
+      let actions = '';
+      if (canEditRecord(record)) {
+        actions += `<button onclick="openEditPayment('${key}')" class="btn-edit">Засах</button> `;
+      }
+      if (currentRole === 'admin') {
+        actions += `<button onclick="deleteRecord('${key}')" class="btn-danger">Delete</button>`;
+      }
+
       row.innerHTML = `
         <td><strong>${record.plate}</strong></td>
         <td>${record.entryStaff} / ${record.exitStaff}</td>
-        <td><strong>₮${Number(record.fee).toLocaleString()}</strong></td>
-        ${deleteBtn}
+        <td><strong>₮${Number(record.fee).toLocaleString()}</strong><br><small style="color:#64748b;">${methodText}${editedMark}</small></td>
+        <td>${actions}</td>
       `;
       historyBody.appendChild(row);
     });
+}
+
+function openEditPayment(key) {
+  const record = recentLogs[key];
+  if (!record) return;
+  if (!canEditRecord(record)) {
+    alert('Та зөвхөн өөрийн гаргасан машины бүртгэлийг засах боломжтой.');
+    return;
+  }
+  editingLogKey = key;
+  document.getElementById('edit-plate').textContent = record.plate;
+  document.getElementById('edit-fee').textContent = '₮' + Number(record.fee).toLocaleString();
+  document.getElementById('edit-current').textContent = PAYMENT_LABELS[record.paymentMethod] || '—';
+  document.getElementById('edit-payment-modal').style.display = 'flex';
+}
+
+function closeEditPayment() {
+  document.getElementById('edit-payment-modal').style.display = 'none';
+  editingLogKey = null;
+}
+
+function changePaymentMethod(newMethod) {
+  const key = editingLogKey;
+  const record = recentLogs[key];
+  if (!record) { closeEditPayment(); return; }
+  if (!canEditRecord(record)) { closeEditPayment(); return; }
+  if (record.paymentMethod === newMethod) { closeEditPayment(); return; }
+
+  // The price this car originally had to pay (needed when changing back from "Free")
+  let originalFee = null;
+  if (record.calculatedFee != null) originalFee = Number(record.calculatedFee);
+  else if (record.paymentMethod !== 'Free') originalFee = Number(record.fee);
+
+  let newFee;
+  if (newMethod === 'Free') {
+    newFee = 0;
+  } else if (originalFee === null) {
+    alert('Энэ бүртгэлийн анхны үнэ хадгалагдаагүй тул "Үнэгүй"-ээс өөрчилж болохгүй. Админд хандана уу.');
+    return;
+  } else {
+    newFee = originalFee;
+  }
+
+  const oldText = PAYMENT_LABELS[record.paymentMethod] || '—';
+  const newText = PAYMENT_LABELS[newMethod];
+  if (!confirm(`${record.plate}\n${oldText} → ${newText}\nДүн: ₮${newFee.toLocaleString()}\n\nӨөрчлөх үү?`)) return;
+
+  const updates = {};
+  updates[`history_log/${key}/paymentMethod`] = newMethod;
+  updates[`history_log/${key}/fee`] = newFee;
+  if (originalFee !== null) updates[`history_log/${key}/calculatedFee`] = originalFee;
+
+  // Audit trail: who changed what, and when
+  const editId = db.ref(`history_log/${key}/edits`).push().key;
+  updates[`history_log/${key}/edits/${editId}`] = {
+    from: record.paymentMethod || null,
+    to: newMethod,
+    feeBefore: Number(record.fee) || 0,
+    feeAfter: newFee,
+    by: currentUser,
+    at: Date.now()
+  };
+
+  db.ref().update(updates)
+    .then(closeEditPayment)
+    .catch((err) => alert('Алдаа: ' + err.message));
 }
 
 init();
@@ -318,13 +402,12 @@ function init() {
     if (currentRole === 'admin') {
       adminPanel.style.display = 'block';
       qrSection.style.display = 'block';
-      adminColHeader.style.display = 'table-cell';
       generateQRCode();
     } else {
       adminPanel.style.display = 'none';
       qrSection.style.display = 'none';
-      adminColHeader.style.display = 'none';
     }
+    renderActivityLog(recentLogs);
     loadShiftStart(currentUser).finally(listenShiftLogs);
     listenShiftReports();
   } else {
@@ -862,12 +945,19 @@ function confirmCheckout(paymentMethod) {
     return;
   }
 
+  // Second layer: confirm the chosen payment method before the vehicle leaves.
+  // Pressing "Cancel" here keeps the frozen price on screen so another method can be chosen.
+  const methodLabel = PAYMENT_LABELS[paymentMethod] || paymentMethod;
+  const payAmount = paymentMethod === 'Free' ? 0 : snap.fee;
+  if (!confirm(`Машин: ${snap.plate}\nДүн: ₮${payAmount.toLocaleString()}\nТөлбөрийн хэлбэр: ${methodLabel}\n\nЭнэ машиныг энэ хэлбэрээр гаргахдаа итгэлтэй байна уу?`)) return;
+
   db.ref('history_log').push({
     plate: snap.plate,
     entryStaff: snap.entryStaff,
     exitStaff: currentUser,
     duration: snap.durationText,
     fee: paymentMethod === 'Free' ? 0 : snap.fee,
+    calculatedFee: snap.fee,      // original price, so a wrong 'Free' can be corrected later
     paymentMethod: paymentMethod, // Log payment method to Firebase
     exitTime: snap.frozenAt,      // the moment the price was frozen
     timestamp: Date.now()
