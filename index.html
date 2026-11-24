@@ -277,6 +277,20 @@
             <label for="rate-hour">Цаг тутмын үнэ (₮)</label>
             <input type="number" id="rate-hour" min="1" required />
           </div>
+          <div class="form-group">
+            <label for="rate-half">30 минут тутмын үнэ (₮)</label>
+            <input type="number" id="rate-half" min="1" required />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:4px;">
+          <label>Одоо ашиглах тооцоо</label>
+          <label style="font-weight:400; display:flex; gap:8px; align-items:center;">
+            <input type="radio" name="rate-mode" value="hourly" style="width:auto;"> Цаг тутам (эхэлсэн цаг бүр)
+          </label>
+          <label style="font-weight:400; display:flex; gap:8px; align-items:center;">
+            <input type="radio" name="rate-mode" value="half" style="width:auto;"> 30 минут тутам (эхэлсэн 30 минут бүр)
+          </label>
         </div>
 
         <h5 style="margin:8px 0 2px;">Үнэ түгжих хугацаа</h5>
@@ -446,6 +460,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
