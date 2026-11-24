@@ -13,7 +13,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const PURGE_AFTER_DAYS = 2; // Auto cleanup interval
+const PURGE_AFTER_DAYS = 7;   // exit records older than this are deleted automatically
+const STALE_CAR_HOURS = 72;   // a car inside longer than this is highlighted for the admin
 
 // App State
 let currentUser = localStorage.getItem('parking_user') || null;
@@ -23,6 +24,7 @@ let activeVehiclesMap = {};
 let historyLogMap = {};
 let freeVehiclesMap = {};
 let listenersStarted = false; // prevents duplicate Firebase listeners
+let orphanSweepDone = false;  // one-time cleanup of shifts that belong to deleted accounts
 
 // Checkout "freeze": price and time are locked the moment the exit button is pressed
 let checkoutSnapshot = null;
@@ -30,9 +32,11 @@ const FREEZE_MAX_MINUTES = 10; // a frozen price is refreshed if the modal stays
 
 // Rate settings: first short period, then a price per started hour, with "locks" (caps)
 const DEFAULT_RATES = {
+  mode: 'hourly',      // 'hourly' = charge per started hour, 'half' = charge per started 30 minutes
   firstMinutes: 10,
   firstFee: 1500,
-  hourRate: 3000,
+  hourRate: 3000,      // price of each started hour (hourly mode)
+  halfRate: 1500,      // price of each started 30 minutes (30-minute mode)
   locks: [
     { until: 720,  price: 20000 },  // price grows until it hits 20000, stays locked until 12h
     { until: 1440, price: 40000 }   // then grows until 40000, locked until 24h
@@ -293,7 +297,7 @@ let editingLogKey = null;
 
 // Admin can edit any record; an employee can edit the records they checked out themselves
 function canEditRecord(record) {
-  return currentRole === 'admin' || record.exitStaff === currentUser;
+  return !record.voided && (currentRole === 'admin' || record.exitStaff === currentUser);
 }
 
 function renderActivityLog(historyData) {
@@ -303,7 +307,7 @@ function renderActivityLog(historyData) {
     .sort((a, b) => b[1].timestamp - a[1].timestamp)
     .forEach(([key, record]) => {
       const row = document.createElement('tr');
-      const methodText = PAYMENT_LABELS[record.paymentMethod] || '—';
+      const methodText = record.voided ? 'Хүчингүй (устгасан)' : (PAYMENT_LABELS[record.paymentMethod] || '—');
       const editedMark = record.edits ? ' ✏️' : '';
 
       let actions = '';
@@ -408,6 +412,7 @@ function init() {
       qrSection.style.display = 'none';
     }
     renderActivityLog(recentLogs);
+    renderActiveTable(document.getElementById('search-plate').value);
     loadShiftStart(currentUser).finally(listenShiftLogs);
     listenShiftReports();
   } else {
@@ -415,7 +420,6 @@ function init() {
   }
 
   setupRealtimeListeners();
-  runAutoCleanup();
 }
 
 // User Authentication (Login)
@@ -525,7 +529,19 @@ createUserForm.addEventListener('submit', (e) => {
 function deleteAccount(username) {
   if (confirm(`Are you sure you want to delete account "${username}"?`)) {
     db.ref(`accounts/${username}`).remove();
+    db.ref(`active_shifts/${username}`).remove();
   }
+}
+
+// One-time sweep (admin only): remove shifts that belong to accounts that no longer exist
+function sweepOrphanShifts() {
+  if (orphanSweepDone || currentRole !== 'admin' || Object.keys(accountsMap).length === 0) return;
+  orphanSweepDone = true;
+  db.ref('active_shifts').once('value').then((snap) => {
+    Object.keys(snap.val() || {}).forEach((name) => {
+      if (name !== 'admin' && !accountsMap[name]) db.ref(`active_shifts/${name}`).remove();
+    });
+  });
 }
 
 function renderUsersTable() {
@@ -653,6 +669,9 @@ function renderRateEditor() {
   document.getElementById('rate-first-min').value = rates.firstMinutes;
   document.getElementById('rate-first-fee').value = rates.firstFee;
   document.getElementById('rate-hour').value = rates.hourRate;
+  document.getElementById('rate-half').value = rates.halfRate;
+  const modeRadio = document.querySelector(`input[name="rate-mode"][value="${rates.mode}"]`);
+  if (modeRadio) modeRadio.checked = true;
 
   body.innerHTML = '';
   locksDraft.forEach((l, i) => {
@@ -703,12 +722,15 @@ if (rateForm) {
     const firstMinutes = parseInt(document.getElementById('rate-first-min').value, 10);
     const firstFee = parseInt(document.getElementById('rate-first-fee').value, 10);
     const hourRate = parseInt(document.getElementById('rate-hour').value, 10);
+    const halfRate = parseInt(document.getElementById('rate-half').value, 10);
+    const mode = document.querySelector('input[name="rate-mode"]:checked').value;
     const locks = locksDraft.map(l => ({ until: Number(l.until), price: Number(l.price) }));
 
     if (isNaN(firstMinutes) || firstMinutes < 0 || isNaN(firstFee) || firstFee < 0) {
       alert('Эхний хугацаа болон үнийг зөв оруулна уу.'); return;
     }
     if (isNaN(hourRate) || hourRate <= 0) { alert('Цаг тутмын үнийг зөв оруулна уу.'); return; }
+    if (isNaN(halfRate) || halfRate <= 0) { alert('30 минутын үнийг зөв оруулна уу.'); return; }
     if (locks.length === 0) { alert('Хамгийн багадаа 1 мөр байх ёстой.'); return; }
 
     for (let i = 0; i < locks.length; i++) {
@@ -728,7 +750,7 @@ if (rateForm) {
     }
 
     db.ref('rate_settings').set({
-      firstMinutes, firstFee, hourRate, locks,
+      mode, firstMinutes, firstFee, hourRate, halfRate, locks,
       updatedBy: currentUser,
       timestamp: Date.now()
     }).then(() => alert('Үнэ амжилттай хадгалагдлаа!'))
@@ -745,7 +767,7 @@ function setupRealtimeListeners() {
 
   db.ref('accounts').on('value', (snap) => {
     accountsMap = snap.val() || {};
-    if (currentRole === 'admin') renderUsersTable();
+    if (currentRole === 'admin') { renderUsersTable(); sweepOrphanShifts(); }
   });
 
   db.ref('rate_settings').on('value', (snap) => {
@@ -753,6 +775,8 @@ function setupRealtimeListeners() {
     const locks = val ? normalizeLocks(val.locks) : [];
     if (val && locks.length && val.hourRate != null) {
       rates = {
+        mode: val.mode === 'half' ? 'half' : 'hourly',
+        halfRate: val.halfRate != null ? Number(val.halfRate) : DEFAULT_RATES.halfRate,
         firstMinutes: val.firstMinutes != null ? Number(val.firstMinutes) : DEFAULT_RATES.firstMinutes,
         firstFee: val.firstFee != null ? Number(val.firstFee) : DEFAULT_RATES.firstFee,
         hourRate: Number(val.hourRate),
@@ -819,16 +843,51 @@ function renderActiveTable(filter = '') {
   entries.forEach(([key, v]) => {
     if (filter && !v.plate.toLowerCase().includes(filter.toLowerCase())) return;
 
-    const formattedTime = new Date(v.entryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const entry = new Date(v.entryTime);
+    const isToday = entry.toDateString() === new Date().toDateString();
+    const formattedTime = isToday
+      ? entry.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : entry.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+    const hoursInside = (Date.now() - entry.getTime()) / 3600000;
+    const isStale = hoursInside > STALE_CAR_HOURS;
+
+    const voidBtn = currentRole === 'admin'
+      ? ` <button onclick="voidVehicle('${key}')" title="Төлбөргүйгээр жагсаалтаас устгах" style="background:#64748b; padding:6px 10px; font-size:0.85rem; width:auto;">✕</button>`
+      : '';
+
     const row = document.createElement('tr');
+    if (isStale) row.style.background = '#fef3c7';
     row.innerHTML = `
       <td><strong>${v.plate}</strong></td>
-      <td>${formattedTime}</td>
+      <td>${formattedTime}${isStale ? `<br><small style="color:#b45309;">⚠️ ${Math.floor(hoursInside / 24)} өдөр</small>` : ''}</td>
       <td>${v.entryStaff}${v.manualEntry ? ' <span title="Админ гараар бүртгэсэн">✏️</span>' : ''}</td>
-      <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Гаргах</button></td>
+      <td><button class="btn-danger" onclick="openCheckoutModal('${key}')">Гаргах</button>${voidBtn}</td>
     `;
     tableBody.appendChild(row);
   });
+}
+
+// Admin only: remove a car that was registered by mistake or abandoned, with no payment.
+// A "voided" record is kept in the recent log so there is a trace of who removed it.
+function voidVehicle(key) {
+  if (currentRole !== 'admin') return;
+  const v = activeVehiclesMap[key];
+  if (!v) return;
+  if (!confirm(`${v.plate}\nЭнэ машиныг төлбөргүйгээр жагсаалтаас устгах уу?\n(Алдаатай бүртгэл эсвэл орхигдсон машин)`)) return;
+
+  db.ref('history_log').push({
+    plate: v.plate,
+    entryStaff: v.entryStaff,
+    exitStaff: currentUser,
+    duration: '—',
+    fee: 0,
+    paymentMethod: 'Void',
+    voided: true,
+    exitTime: Date.now(),
+    timestamp: Date.now()
+  });
+  db.ref(`active_vehicles/${key}`).remove();
 }
 
 function filterVehicles() {
@@ -837,13 +896,15 @@ function filterVehicles() {
   renderActiveTable(input.value);
 }
 
-// Parking fee: every started hour costs hourRate, but the price is "locked" at each
+// Parking fee: every started block (hour or 30 minutes, set in the admin panel) is charged, but the price is "locked" at each
 // lock's price until that lock's time ends. A full 24h costs the last lock's price,
 // and the same pattern repeats for every extra day.
 function calculateParkingFee(totalMinutes, isFreeVehicle) {
   if (isFreeVehicle || totalMinutes <= 0) return 0;
 
-  const { firstMinutes, firstFee, hourRate, locks } = rates;
+  const { mode, firstMinutes, firstFee, hourRate, halfRate, locks } = rates;
+  const step = mode === 'half' ? 30 : 60;                 // billing block in minutes
+  const stepRate = mode === 'half' ? halfRate : hourRate; // price of one block
   const DAY = 1440;
   const dayPrice = locks[locks.length - 1].price;
 
@@ -858,8 +919,8 @@ function calculateParkingFee(totalMinutes, isFreeVehicle) {
     let base = 0, start = 0;
     for (const lock of locks) {
       if (rem <= lock.until) {
-        const hours = Math.ceil((rem - start) / 60);
-        fee = Math.min(base + hours * hourRate, lock.price);
+        const blocks = Math.ceil((rem - start) / step);
+        fee = Math.min(base + blocks * stepRate, lock.price);
         break;
       }
       base = lock.price;
@@ -979,31 +1040,21 @@ function deleteRecord(key) {
   }
 }
 
-function runAutoCleanup() {
-  const cutoff = Date.now() - (PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000);
-  db.ref('history_log').once('value', (snap) => {
-    const logs = snap.val();
-    if (logs) {
-      Object.entries(logs).forEach(([key, r]) => {
-        if (r.timestamp && r.timestamp < cutoff) db.ref(`history_log/${key}`).remove();
-      });
-    }
-  });
-}
-
 function generateQRCode() {
   const container = document.getElementById('qrcode');
   container.innerHTML = '';
   new QRCode(container, { text: window.location.href, width: 120, height: 120 });
 }
 
-// Automatically cleanup logs older than 14 days (1,209,600,000 ms)
+// Automatically delete exit records older than PURGE_AFTER_DAYS.
+// It asks Firebase only for the OLD records (needs ".indexOn": ["timestamp"] on history_log),
+// so it does not download the whole history.
 function cleanupOldLogs() {
-  const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+  const cutoff = Date.now() - (PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000);
 
   db.ref('history_log')
     .orderByChild('timestamp')
-    .endAt(fourteenDaysAgo)
+    .endAt(cutoff)
     .once('value', (snapshot) => {
       const oldLogs = snapshot.val();
       if (oldLogs) {
@@ -1013,7 +1064,7 @@ function cleanupOldLogs() {
         });
 
         db.ref().update(updates)
-          .then(() => console.log('Old logs (>14 days) cleaned up successfully.'))
+          .then(() => console.log(`Old logs (>${PURGE_AFTER_DAYS} days) cleaned up.`))
           .catch((err) => console.error('Error cleaning up logs:', err));
       }
     });
@@ -1100,5 +1151,5 @@ if (manualEntryForm) {
   });
 }
 
-// Run cleanup every time the app initializes
+// Run the cleanup once each time the page loads
 cleanupOldLogs();
